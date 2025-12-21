@@ -68,19 +68,13 @@ def build_mqtt_topics(appliance_row, config):
     base_topic = config["mqtt_base_topic"]
     discovery_prefix = config["mqtt_discovery_prefix"]
 
-    status_object_id = normalize_object_id(
-        appliance_row.get("status_entity_id"), f"{slug}_status"
-    )
     power_object_id = normalize_object_id(
         appliance_row.get("power_entity_id"), f"{slug}_power"
     )
 
     return {
-        "status_state_topic": f"{base_topic}/{slug}/status",
         "power_state_topic": f"{base_topic}/{slug}/power",
-        "status_config_topic": f"{discovery_prefix}/sensor/{status_object_id}/config",
         "power_config_topic": f"{discovery_prefix}/sensor/{power_object_id}/config",
-        "status_object_id": status_object_id,
         "power_object_id": power_object_id,
         "slug": slug,
     }

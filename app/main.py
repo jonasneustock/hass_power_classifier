@@ -165,7 +165,7 @@ class PowerPoller:
                                 log_event(
                                     f"Prediction for segment #{segment_id}: {appliance}/{phase}"
                                 )
-                                self._push_status(appliance, phase, ts)
+                                self._record_phase(appliance, phase, ts)
                     self.pending_segment = None
 
             if ts - self.last_cleanup_ts >= self.config["cleanup_interval"]:
@@ -179,37 +179,38 @@ class PowerPoller:
             self._push_power_allocations(ts, value)
             time.sleep(self.config["poll_interval"])
 
-    def _push_status(self, appliance, phase, ts):
+    def _record_phase(self, appliance, phase, ts):
         appliance_row = self.store.get_appliance(appliance)
         if not appliance_row:
             return
         last_status = appliance_row.get("last_status")
         if last_status == phase:
             return
-        if self.config.get("mqtt_enabled") and self.mqtt_publisher:
-            topics = build_mqtt_topics(appliance_row, self.config)
-            if self.mqtt_publisher.publish_value(
-                topics["status_state_topic"], phase, retain=True
-            ):
-                self.store.update_appliance_status(appliance, phase, ts)
-                log_event(f"Status pushed for {appliance}: {phase}")
+        self.store.update_appliance_status(appliance, phase, ts)
+        log_event(f"Phase update for {appliance}: {phase}")
+        if last_status == "start" and phase == "stop":
+            # push zero watts to power entity
+            if self.config.get("mqtt_enabled") and self.mqtt_publisher:
+                topics = build_mqtt_topics(appliance_row, self.config)
+                if not self.mqtt_publisher.publish_value(
+                    topics["power_state_topic"], 0, retain=True
+                ):
+                    logging.warning("Failed to publish MQTT power 0 for %s", appliance)
+                else:
+                    log_event(f"Power reset to 0 for {appliance}")
             else:
-                logging.warning("Failed to publish MQTT status for %s", appliance)
-            return
-        try:
-            self.ha_client.set_state(
-                appliance_row["status_entity_id"],
-                phase,
-                {
-                    "appliance": appliance,
-                    "phase": phase,
-                    "source": "ha_power_classifier",
-                },
-            )
-            self.store.update_appliance_status(appliance, phase, ts)
-            log_event(f"Status pushed for {appliance}: {phase}")
-        except Exception as exc:
-            logging.warning("Failed to push status for %s: %s", appliance, exc)
+                try:
+                    self.ha_client.set_state(
+                        appliance_row["power_entity_id"],
+                        0,
+                        {
+                            "appliance": appliance,
+                            "source": "ha_power_classifier",
+                        },
+                    )
+                    log_event(f"Power reset to 0 for {appliance}")
+                except Exception as exc:
+                    logging.warning("Failed to reset power for %s: %s", appliance, exc)
 
     def _push_power_allocations(self, ts, total_power):
         appliances = self.store.list_appliances()
@@ -230,6 +231,7 @@ class PowerPoller:
 
         for appliance in active:
             watts = appliance["mean_power"]
+            proportion = 1.0
             if self.config.get("mqtt_enabled") and self.mqtt_publisher:
                 topics = build_mqtt_topics(appliance, self.config)
                 if not self.mqtt_publisher.publish_value(
@@ -285,13 +287,6 @@ def publish_mqtt_discovery(appliance_row, config, mqtt_publisher):
         "manufacturer": "custom",
         "model": "ha_power_classifier",
     }
-    status_payload = {
-        "name": f"{appliance_row['name']} status",
-        "state_topic": topics["status_state_topic"],
-        "unique_id": f"{config['mqtt_device_id']}_{topics['status_object_id']}",
-        "object_id": topics["status_object_id"],
-        "device": device,
-    }
     power_payload = {
         "name": f"{appliance_row['name']} power",
         "state_topic": topics["power_state_topic"],
@@ -302,7 +297,6 @@ def publish_mqtt_discovery(appliance_row, config, mqtt_publisher):
         "device_class": "power",
         "state_class": "measurement",
     }
-    mqtt_publisher.publish_json(topics["status_config_topic"], status_payload, retain=True)
     mqtt_publisher.publish_json(topics["power_config_topic"], power_payload, retain=True)
 
 
@@ -514,16 +508,10 @@ def appliances_page(request: Request):
 def create_appliance(
     request: Request,
     name: str = Form(...),
-    status_entity_id: str = Form(...),
     power_entity_id: str = Form(...),
 ):
     errors = []
     if not config.get("mqtt_enabled"):
-        try:
-            ha_client.get_state(status_entity_id)
-        except Exception as exc:
-            logging.warning("Status entity check failed: %s", exc)
-            errors.append("Status entity ID not available in Home Assistant.")
         try:
             ha_client.get_state(power_entity_id)
         except Exception as exc:
@@ -547,14 +535,13 @@ def create_appliance(
                 "error": " ".join(errors),
                 "form": {
                     "name": name,
-                    "status_entity_id": status_entity_id,
                     "power_entity_id": power_entity_id,
                 },
             },
             status_code=400,
         )
     try:
-        store.add_appliance(name, status_entity_id, power_entity_id)
+        store.add_appliance(name, "", power_entity_id)
         log_event(f"Appliance created: {name}")
     except sqlite3.IntegrityError:
         appliances = store.list_appliances()
@@ -574,7 +561,6 @@ def create_appliance(
                 "error": "Appliance name already exists.",
                 "form": {
                     "name": name,
-                    "status_entity_id": status_entity_id,
                     "power_entity_id": power_entity_id,
                 },
             },
@@ -633,7 +619,7 @@ def label_segment(
     store.update_segment_label(segment_id, appliance, phase)
     maybe_train_classifier()
     log_event(f"Labeled segment #{segment_id} as {appliance}/{phase}")
-    return RedirectResponse(url=f"/segments/{segment_id}", status_code=303)
+    return RedirectResponse(url="/segments", status_code=303)
 
 
 @app.post("/segments/{segment_id}/accept_prediction")

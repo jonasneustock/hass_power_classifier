@@ -13,10 +13,6 @@
       <input class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" type="text" name="name" value="{{ form.name if form }}" required />
     </label>
     <label class="text-sm font-medium text-slate-700">
-      Status entity id
-      <input class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" type="text" name="status_entity_id" placeholder="sensor.toaster_status" value="{{ form.status_entity_id if form }}" required />
-    </label>
-    <label class="text-sm font-medium text-slate-700">
       Power entity id
       <input class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" type="text" name="power_entity_id" placeholder="sensor.toaster_power" value="{{ form.power_entity_id if form }}" required />
     </label>
@@ -36,14 +32,11 @@
     {% for appliance in appliances %}
     <div class="rounded-xl border border-slate-200 p-4">
       <h3 class="text-base font-semibold">{{ appliance.name }}</h3>
-      <p class="text-sm text-slate-600">Status entity: {{ appliance.status_entity_id }}</p>
       <p class="text-sm text-slate-600">Power entity: {{ appliance.power_entity_id }}</p>
       {% if config.mqtt_enabled %}
-      <p class="text-sm text-slate-600">MQTT status topic: <code class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ appliance.status_state_topic }}</code></p>
       <p class="text-sm text-slate-600">MQTT power topic: <code class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ appliance.power_state_topic }}</code></p>
       <p class="text-xs text-slate-500">
-        Discovery: <code class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ appliance.status_config_topic }}</code>,
-        <code class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ appliance.power_config_topic }}</code>
+        Discovery: <code class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ appliance.power_config_topic }}</code>
       </p>
       {% endif %}
       <p class="text-sm text-slate-600">Learned power (min/mean/max): {{ appliance.min_power or 0 }} / {{ appliance.mean_power or appliance.running_watts or 0 }} / {{ appliance.max_power or 0 }} W</p>

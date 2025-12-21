@@ -32,7 +32,6 @@ def test_slugify_normalizes_and_falls_back():
 def test_build_mqtt_topics_from_entity_ids():
     appliance_row = {
         "name": "Dryer",
-        "status_entity_id": "sensor.dryer_status",
         "power_entity_id": "sensor.dryer_power",
     }
     config = {
@@ -40,16 +39,13 @@ def test_build_mqtt_topics_from_entity_ids():
         "mqtt_discovery_prefix": "homeassistant",
     }
     topics = build_mqtt_topics(appliance_row, config)
-    assert topics["status_state_topic"] == "ha_power/dryer/status"
     assert topics["power_state_topic"] == "ha_power/dryer/power"
-    assert topics["status_config_topic"] == "homeassistant/sensor/dryer_status/config"
     assert topics["power_config_topic"] == "homeassistant/sensor/dryer_power/config"
 
 
 def test_build_mqtt_topics_with_fallback_ids():
     appliance_row = {
         "name": "Cooler",
-        "status_entity_id": "",
         "power_entity_id": "",
     }
     config = {
@@ -57,9 +53,7 @@ def test_build_mqtt_topics_with_fallback_ids():
         "mqtt_discovery_prefix": "homeassistant",
     }
     topics = build_mqtt_topics(appliance_row, config)
-    assert topics["status_state_topic"] == "ha_power/cooler/status"
     assert topics["power_state_topic"] == "ha_power/cooler/power"
-    assert topics["status_object_id"] == "cooler_status"
     assert topics["power_object_id"] == "cooler_power"
 
 
