@@ -8,7 +8,7 @@ Dockerized FastAPI app that connects to Home Assistant, records a power sensor, 
 - Builds rolling segments and flags candidate changes
 - Web UI for labeling segments as `start`, `running`, or `stop` per appliance
 - Trains a classifier once enough labels exist per appliance
-- Pushes status updates and per-appliance power estimates back to Home Assistant entities
+- Pushes status updates and per-appliance power estimates back to Home Assistant via REST or MQTT discovery
 
 ## Quick start
 1. Copy `.env.example` to `.env` and fill in the Home Assistant details.
@@ -27,14 +27,22 @@ All configuration is handled via environment variables in `.env`:
 - `HA_TOKEN`: Home Assistant long-lived access token
 - `HA_POWER_SENSOR_ENTITY`: Source power sensor entity ID
 - `POLL_INTERVAL_SECONDS`: Polling interval
-- `SEGMENT_WINDOW_SECONDS`: Window size for each segment
 - `RELATIVE_CHANGE_THRESHOLD`: Relative change threshold (e.g. `0.2` for 20%)
 - `SEGMENT_PRE_SAMPLES`: Samples to include before a detected change
 - `SEGMENT_POST_SAMPLES`: Samples to include after a detected change
 - `MIN_LABELS_PER_APPLIANCE`: Minimum labels per appliance before training
 - `STATUS_TTL_SECONDS`: Time to keep a running status valid
+- `MQTT_ENABLED`: Enable MQTT output for Home Assistant discovery
+- `MQTT_HOST`: MQTT broker hostname
+- `MQTT_PORT`: MQTT broker port
+- `MQTT_USERNAME`: MQTT username
+- `MQTT_PASSWORD`: MQTT password
+- `MQTT_BASE_TOPIC`: Base topic for per-appliance state
+- `MQTT_DISCOVERY_PREFIX`: Home Assistant discovery prefix (default `homeassistant`)
+- `MQTT_CLIENT_ID`: Client ID for the MQTT connection
+- `MQTT_DEVICE_ID`: Device identifier used for discovery unique IDs
 
 ## Notes
-- Create per-appliance entities in Home Assistant for `status` and `power` and paste their IDs into the app.
+- When MQTT is enabled, the app publishes MQTT discovery topics for each appliance and pushes status/power to `MQTT_BASE_TOPIC/<appliance>/(status|power)`.
 - The classifier uses simple window features. Improve accuracy by labeling consistent segments across appliances.
 - Per-appliance wattage is computed from each appliance's learned running average and split proportionally across active appliances.

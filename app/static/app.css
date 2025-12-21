@@ -231,6 +231,12 @@ a {
   color: var(--accent);
 }
 
+code {
+  background: #f6f1eb;
+  padding: 0.1rem 0.3rem;
+  border-radius: 6px;
+}
+
 .hint {
   margin-top: 0.6rem;
   color: var(--muted);

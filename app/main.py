@@ -17,6 +17,7 @@ from fastapi.templating import Jinja2Templates
 from app.classifier import ClassifierService
 from app.data_store import DataStore
 from app.ha_client import HAClient
+from app.mqtt_client import MqttPublisher
 
 
 def load_config():
@@ -37,6 +38,20 @@ def load_config():
         "cleanup_interval": int(os.getenv("CLEANUP_INTERVAL_SECONDS", "300")),
         "app_title": os.getenv("APP_TITLE", "HA Power Classifier"),
         "data_dir": os.getenv("DATA_DIR", "/data"),
+        "mqtt_enabled": os.getenv("MQTT_ENABLED", "false").lower()
+        in ("1", "true", "yes", "on"),
+        "mqtt_host": os.getenv("MQTT_HOST", "localhost"),
+        "mqtt_port": int(os.getenv("MQTT_PORT", "1883")),
+        "mqtt_username": os.getenv("MQTT_USERNAME", ""),
+        "mqtt_password": os.getenv("MQTT_PASSWORD", ""),
+        "mqtt_base_topic": os.getenv("MQTT_BASE_TOPIC", "ha_power_classifier").rstrip(
+            "/"
+        ),
+        "mqtt_discovery_prefix": os.getenv(
+            "MQTT_DISCOVERY_PREFIX", "homeassistant"
+        ).rstrip("/"),
+        "mqtt_client_id": os.getenv("MQTT_CLIENT_ID", "ha-power-classifier"),
+        "mqtt_device_id": os.getenv("MQTT_DEVICE_ID", "ha_power_classifier"),
     }
 
 
@@ -75,11 +90,12 @@ def compute_features(samples):
 
 
 class PowerPoller:
-    def __init__(self, store, ha_client, classifier, config):
+    def __init__(self, store, ha_client, classifier, config, mqtt_publisher=None):
         self.store = store
         self.ha_client = ha_client
         self.classifier = classifier
         self.config = config
+        self.mqtt_publisher = mqtt_publisher
         min_window = config["segment_pre_samples"] + config["segment_post_samples"] + 1
         max_samples = max(min_window + 20, 50)
         self.samples = deque(maxlen=max_samples)
@@ -184,6 +200,15 @@ class PowerPoller:
         last_status = appliance_row.get("last_status")
         if last_status == phase:
             return
+        if self.config.get("mqtt_enabled") and self.mqtt_publisher:
+            topics = build_mqtt_topics(appliance_row, self.config)
+            if self.mqtt_publisher.publish_value(
+                topics["status_state_topic"], phase, retain=True
+            ):
+                self.store.update_appliance_status(appliance, phase, ts)
+            else:
+                logging.warning("Failed to publish MQTT status for %s", appliance)
+            return
         try:
             self.ha_client.set_state(
                 appliance_row["status_entity_id"],
@@ -221,6 +246,15 @@ class PowerPoller:
         for appliance in active:
             proportion = appliance["running_watts"] / total_running
             watts = proportion * total_power
+            if self.config.get("mqtt_enabled") and self.mqtt_publisher:
+                topics = build_mqtt_topics(appliance, self.config)
+                if not self.mqtt_publisher.publish_value(
+                    topics["power_state_topic"], round(watts, 2), retain=True
+                ):
+                    logging.warning(
+                        "Failed to publish MQTT power for %s", appliance["name"]
+                    )
+                continue
             try:
                 self.ha_client.set_state(
                     appliance["power_entity_id"],
@@ -254,13 +288,104 @@ def format_ts(ts):
 templates.env.filters["format_ts"] = format_ts
 
 
+def slugify(value):
+    value = (value or "").strip().lower()
+    cleaned = []
+    last_sep = False
+    for ch in value:
+        if ch.isalnum():
+            cleaned.append(ch)
+            last_sep = False
+        elif ch in (" ", "-", "_"):
+            if not last_sep:
+                cleaned.append("_")
+                last_sep = True
+        else:
+            if not last_sep:
+                cleaned.append("_")
+                last_sep = True
+    slug = "".join(cleaned).strip("_")
+    return slug or "appliance"
+
+
+def normalize_object_id(entity_id, fallback):
+    if not entity_id:
+        return fallback
+    if "." in entity_id:
+        return entity_id.split(".", 1)[1]
+    return entity_id
+
+
+def build_mqtt_topics(appliance_row, config):
+    slug = slugify(appliance_row["name"])
+    base_topic = config["mqtt_base_topic"]
+    discovery_prefix = config["mqtt_discovery_prefix"]
+
+    status_object_id = normalize_object_id(
+        appliance_row.get("status_entity_id"), f"{slug}_status"
+    )
+    power_object_id = normalize_object_id(
+        appliance_row.get("power_entity_id"), f"{slug}_power"
+    )
+
+    return {
+        "status_state_topic": f"{base_topic}/{slug}/status",
+        "power_state_topic": f"{base_topic}/{slug}/power",
+        "status_config_topic": f"{discovery_prefix}/sensor/{status_object_id}/config",
+        "power_config_topic": f"{discovery_prefix}/sensor/{power_object_id}/config",
+        "status_object_id": status_object_id,
+        "power_object_id": power_object_id,
+        "slug": slug,
+    }
+
+
+def publish_mqtt_discovery(appliance_row, config, mqtt_publisher):
+    if not mqtt_publisher:
+        return
+    topics = build_mqtt_topics(appliance_row, config)
+    device = {
+        "identifiers": [config["mqtt_device_id"]],
+        "name": config["app_title"],
+        "manufacturer": "custom",
+        "model": "ha_power_classifier",
+    }
+    status_payload = {
+        "name": f"{appliance_row['name']} status",
+        "state_topic": topics["status_state_topic"],
+        "unique_id": f"{config['mqtt_device_id']}_{topics['status_object_id']}",
+        "object_id": topics["status_object_id"],
+        "device": device,
+    }
+    power_payload = {
+        "name": f"{appliance_row['name']} power",
+        "state_topic": topics["power_state_topic"],
+        "unique_id": f"{config['mqtt_device_id']}_{topics['power_object_id']}",
+        "object_id": topics["power_object_id"],
+        "device": device,
+        "unit_of_measurement": "W",
+        "device_class": "power",
+        "state_class": "measurement",
+    }
+    mqtt_publisher.publish_json(topics["status_config_topic"], status_payload, retain=True)
+    mqtt_publisher.publish_json(topics["power_config_topic"], power_payload, retain=True)
+
+
 data_dir = Path(config["data_dir"])
 data_dir.mkdir(parents=True, exist_ok=True)
 store = DataStore(str(data_dir / "power_classifier.sqlite"))
 ha_client = HAClient(config["ha_base_url"], config["ha_token"])
 classifier = ClassifierService(str(data_dir / "model.pkl"))
+mqtt_publisher = None
+if config["mqtt_enabled"]:
+    mqtt_publisher = MqttPublisher(
+        host=config["mqtt_host"],
+        port=config["mqtt_port"],
+        username=config["mqtt_username"],
+        password=config["mqtt_password"],
+        client_id=config["mqtt_client_id"],
+    )
 
-poller = PowerPoller(store, ha_client, classifier, config)
+poller = PowerPoller(store, ha_client, classifier, config, mqtt_publisher)
 
 
 def maybe_train_classifier():
@@ -298,12 +423,22 @@ def check_ha_connection():
 @app.on_event("startup")
 def on_startup():
     check_ha_connection()
+    if mqtt_publisher:
+        try:
+            mqtt_publisher.connect()
+        except Exception as exc:
+            logging.warning("MQTT connection failed: %s", exc)
+        else:
+            for appliance in store.list_appliances():
+                publish_mqtt_discovery(appliance, config, mqtt_publisher)
     poller.start()
 
 
 @app.on_event("shutdown")
 def on_shutdown():
     poller.stop()
+    if mqtt_publisher:
+        mqtt_publisher.close()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -330,6 +465,13 @@ def dashboard(request: Request):
 @app.get("/appliances", response_class=HTMLResponse)
 def appliances_page(request: Request):
     appliances = store.list_appliances()
+    if config.get("mqtt_enabled"):
+        enriched = []
+        for appliance in appliances:
+            item = dict(appliance)
+            item.update(build_mqtt_topics(appliance, config))
+            enriched.append(item)
+        appliances = enriched
     return templates.TemplateResponse(
         "appliances.html",
         {"request": request, "appliances": appliances, "config": config},
@@ -344,18 +486,26 @@ def create_appliance(
     power_entity_id: str = Form(...),
 ):
     errors = []
-    try:
-        ha_client.get_state(status_entity_id)
-    except Exception as exc:
-        logging.warning("Status entity check failed: %s", exc)
-        errors.append("Status entity ID not available in Home Assistant.")
-    try:
-        ha_client.get_state(power_entity_id)
-    except Exception as exc:
-        logging.warning("Power entity check failed: %s", exc)
-        errors.append("Power entity ID not available in Home Assistant.")
+    if not config.get("mqtt_enabled"):
+        try:
+            ha_client.get_state(status_entity_id)
+        except Exception as exc:
+            logging.warning("Status entity check failed: %s", exc)
+            errors.append("Status entity ID not available in Home Assistant.")
+        try:
+            ha_client.get_state(power_entity_id)
+        except Exception as exc:
+            logging.warning("Power entity check failed: %s", exc)
+            errors.append("Power entity ID not available in Home Assistant.")
     if errors:
         appliances = store.list_appliances()
+        if config.get("mqtt_enabled"):
+            enriched = []
+            for appliance in appliances:
+                item = dict(appliance)
+                item.update(build_mqtt_topics(appliance, config))
+                enriched.append(item)
+            appliances = enriched
         return templates.TemplateResponse(
             "appliances.html",
             {
@@ -375,6 +525,13 @@ def create_appliance(
         store.add_appliance(name, status_entity_id, power_entity_id)
     except sqlite3.IntegrityError:
         appliances = store.list_appliances()
+        if config.get("mqtt_enabled"):
+            enriched = []
+            for appliance in appliances:
+                item = dict(appliance)
+                item.update(build_mqtt_topics(appliance, config))
+                enriched.append(item)
+            appliances = enriched
         return templates.TemplateResponse(
             "appliances.html",
             {
@@ -390,6 +547,9 @@ def create_appliance(
             },
             status_code=400,
         )
+    appliance_row = store.get_appliance(name)
+    if appliance_row and mqtt_publisher:
+        publish_mqtt_discovery(appliance_row, config, mqtt_publisher)
     return RedirectResponse(url="/appliances", status_code=303)
 
 

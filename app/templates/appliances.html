@@ -20,6 +20,9 @@
       Power entity id
       <input type="text" name="power_entity_id" placeholder="sensor.toaster_power" value="{{ form.power_entity_id if form }}" required />
     </label>
+    {% if config.mqtt_enabled %}
+    <p class="hint">When MQTT is enabled, the entity IDs are used as discovery object IDs.</p>
+    {% endif %}
     <button type="submit">Create appliance</button>
   </form>
 </section>
@@ -35,6 +38,15 @@
       <h3>{{ appliance.name }}</h3>
       <p>Status entity: {{ appliance.status_entity_id }}</p>
       <p>Power entity: {{ appliance.power_entity_id }}</p>
+      {% if config.mqtt_enabled %}
+      <p>MQTT status topic: <code>{{ appliance.status_state_topic }}</code></p>
+      <p>MQTT power topic: <code>{{ appliance.power_state_topic }}</code></p>
+      <p class="hint">
+        Discovery topics:
+        <code>{{ appliance.status_config_topic }}</code>,
+        <code>{{ appliance.power_config_topic }}</code>
+      </p>
+      {% endif %}
       <p>Running watts: {{ appliance.running_watts }}</p>
       <p>Last status: {{ appliance.last_status or 'unknown' }}</p>
     </div>
