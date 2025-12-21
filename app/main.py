@@ -355,17 +355,22 @@ def _run_training():
             training_state["last_finished"] = int(time.time())
             return
         counts = store.get_label_counts_by_appliance()
-        for appliance in appliances:
-            if counts.get(appliance["name"], 0) < config["min_labels"]:
-                log_event("Training skipped: not enough labels", level="warning")
-                training_state["last_finished"] = int(time.time())
-                return
+        eligible = {
+            appliance["name"]
+            for appliance in appliances
+            if counts.get(appliance["name"], 0) >= config["min_labels"]
+        }
+        if not eligible:
+            log_event("Training skipped: no appliance meets label threshold", level="warning")
+            training_state["last_finished"] = int(time.time())
+            return
         labeled_segments = store.get_labeled_segments()
+        labeled_segments = [seg for seg in labeled_segments if seg["label_appliance"] in eligible]
         if not labeled_segments:
             log_event("Training skipped: no labeled segments", level="warning")
             training_state["last_finished"] = int(time.time())
             return
-        classifier.train(labeled_segments)
+        classifier.train(labeled_segments, eligible_appliances=eligible)
         power_stats = compute_power_stats_by_appliance()
         for name, stats in power_stats.items():
             store.update_appliance_power_stats(

@@ -30,13 +30,16 @@ class ClassifierService:
         }
         joblib.dump(data, self.model_path)
 
-    def train(self, segments):
+    def train(self, segments, eligible_appliances=None):
         if not segments:
             return None
         X = []
         y = []
         for segment in segments:
-            label = f"{segment['label_appliance']}|{segment['label_phase']}"
+            appliance = segment["label_appliance"]
+            if eligible_appliances and appliance not in eligible_appliances:
+                continue
+            label = f"{appliance}|{segment['label_phase']}"
             features = [
                 segment["mean"],
                 segment["std"],
@@ -48,6 +51,8 @@ class ClassifierService:
             ]
             X.append(features)
             y.append(label)
+        if not X:
+            return None
         X = np.array(X)
         y = np.array(y)
 
