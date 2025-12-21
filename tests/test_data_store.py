@@ -59,3 +59,28 @@ def test_segments_and_labels(tmp_path):
     store.clear_segment_prediction(seg_id)
     cleared = store.get_segment(seg_id)
     assert cleared["predicted_appliance"] is None
+
+
+def test_delete_segment(tmp_path):
+    db = tmp_path / "store.sqlite"
+    store = DataStore(str(db))
+    now = int(time.time())
+    seg_id = store.add_segment(
+        {
+            "start_ts": now,
+            "end_ts": now + 5,
+            "mean": 1,
+            "std": 0,
+            "max": 1,
+            "min": 1,
+            "duration": 5,
+            "slope": 0,
+            "change_score": 0,
+            "candidate": True,
+            "flank": "positive",
+            "created_ts": now,
+        }
+    )
+    assert store.get_segment(seg_id) is not None
+    store.delete_segment(seg_id)
+    assert store.get_segment(seg_id) is None

@@ -139,30 +139,30 @@ class PowerPoller:
                         + 1
                     )
                     if len(samples_list) >= segment_length:
-                    segment_samples = samples_list[-segment_length:]
-                    if len(segment_samples) >= 30:
-                        features = compute_features(segment_samples)
-                        delta = segment_samples[-1][1] - segment_samples[0][1]
-                        if delta > 0:
-                            flank = "positive"
-                        elif delta < 0:
-                            flank = "negative"
-                        else:
-                            flank = "flat"
-                        segment = {
-                            "start_ts": segment_samples[0][0],
-                            "end_ts": segment_samples[-1][0],
-                            "mean": features["mean"],
-                            "std": features["std"],
+                        segment_samples = samples_list[-segment_length:]
+                        if len(segment_samples) >= 30:
+                            features = compute_features(segment_samples)
+                            delta = segment_samples[-1][1] - segment_samples[0][1]
+                            if delta > 0:
+                                flank = "positive"
+                            elif delta < 0:
+                                flank = "negative"
+                            else:
+                                flank = "flat"
+                            segment = {
+                                "start_ts": segment_samples[0][0],
+                                "end_ts": segment_samples[-1][0],
+                                "mean": features["mean"],
+                                "std": features["std"],
                                 "max": features["max"],
                                 "min": features["min"],
-                            "duration": features["duration"],
-                            "slope": features["slope"],
-                            "change_score": features["change_score"],
-                            "candidate": True,
-                            "flank": flank,
-                            "created_ts": ts,
-                        }
+                                "duration": features["duration"],
+                                "slope": features["slope"],
+                                "change_score": features["change_score"],
+                                "candidate": True,
+                                "flank": flank,
+                                "created_ts": ts,
+                            }
                             segment_id = self.store.add_segment(segment)
                             log_event(
                                 f"Segment #{segment_id} created change={round(features['change_score']*100,1)}%"
