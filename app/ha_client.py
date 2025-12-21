@@ -2,7 +2,7 @@ import requests
 
 
 class HAClient:
-    def __init__(self, base_url, token, timeout=10):
+    def __init__(self, base_url, token, timeout=30):
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.timeout = timeout
