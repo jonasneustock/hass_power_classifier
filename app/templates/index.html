@@ -21,6 +21,32 @@
   {% endif %}
 </section>
 
+{% if latest_per_sensor %}
+<section class="panel">
+  <div class="panel-header">
+    <h2>Per-sensor latest</h2>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Sensor</th>
+        <th>Value (W)</th>
+        <th>Timestamp</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for sensor, item in latest_per_sensor.items() %}
+      <tr>
+        <td>{{ sensor }}</td>
+        <td>{{ item.value }}</td>
+        <td>{{ item.ts | format_ts }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
 <section class="panel">
   <div class="panel-header">
     <h2>Overall power change</h2>

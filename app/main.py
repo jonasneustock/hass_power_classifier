@@ -22,10 +22,16 @@ from app.mqtt_client import MqttPublisher
 
 def load_config():
     load_dotenv()
+    sensors_env = os.getenv("HA_POWER_SENSORS", "")
+    sensors = [s.strip() for s in sensors_env.split(",") if s.strip()]
+    if not sensors:
+        fallback = os.getenv("HA_POWER_SENSOR_ENTITY", "")
+        if fallback:
+            sensors = [fallback]
     return {
         "ha_base_url": os.getenv("HA_BASE_URL", "http://homeassistant.local:8123"),
         "ha_token": os.getenv("HA_TOKEN", ""),
-        "power_sensor": os.getenv("HA_POWER_SENSOR_ENTITY", ""),
+        "power_sensors": sensors[:10],
         "poll_interval": float(os.getenv("POLL_INTERVAL_SECONDS", "5")),
         "relative_change_threshold": float(
             os.getenv("RELATIVE_CHANGE_THRESHOLD", "0.2")
@@ -96,6 +102,7 @@ class PowerPoller:
         self.classifier = classifier
         self.config = config
         self.mqtt_publisher = mqtt_publisher
+        self.sensors = config["power_sensors"]
         min_window = config["segment_pre_samples"] + config["segment_post_samples"] + 1
         max_samples = max(min_window + 20, 50)
         self.samples = deque(maxlen=max_samples)
@@ -119,16 +126,24 @@ class PowerPoller:
     def run(self):
         while not self.stop_event.is_set():
             ts = int(time.time())
-            try:
-                state = self.ha_client.get_state(self.config["power_sensor"])
-                value = float(state["state"])
-            except Exception as exc:
-                logging.warning("Failed to read HA sensor: %s", exc)
+            total_value = 0.0
+            read_success = 0
+            for sensor in self.sensors:
+                try:
+                    state = self.ha_client.get_state(sensor)
+                    value = float(state["state"])
+                    self.store.add_sensor_sample(ts, sensor, value)
+                    total_value += value
+                    read_success += 1
+                except Exception as exc:
+                    logging.warning("Failed to read HA sensor %s: %s", sensor, exc)
+
+            if read_success == 0:
                 time.sleep(self.config["poll_interval"])
                 continue
 
-            self.store.add_sample(ts, value)
-            self.samples.append((ts, value))
+            self.store.add_sample(ts, total_value)
+            self.samples.append((ts, total_value))
             self.sample_count += 1
 
             if len(self.samples) >= 2 and self.pending_segment is None:
@@ -403,17 +418,19 @@ def maybe_train_classifier():
 
 
 def check_ha_connection():
-    if not config["ha_token"] or not config["power_sensor"]:
-        logging.warning("HA_TOKEN or HA_POWER_SENSOR_ENTITY not set")
+    if not config["ha_token"] or not config["power_sensors"]:
+        logging.warning("HA_TOKEN or HA_POWER_SENSORS not set")
         return False
-    try:
-        state = ha_client.get_state(config["power_sensor"])
-        float(state["state"])
-    except Exception as exc:
-        logging.warning("HA connection check failed: %s", exc)
-        return False
-    logging.info("HA connection check succeeded for %s", config["power_sensor"])
-    return True
+    ok = True
+    for sensor in config["power_sensors"]:
+        try:
+            state = ha_client.get_state(sensor)
+            float(state["state"])
+            logging.info("HA connection check succeeded for %s", sensor)
+        except Exception as exc:
+            logging.warning("HA connection check failed for %s: %s", sensor, exc)
+            ok = False
+    return ok
 
 
 @app.on_event("startup")
@@ -440,6 +457,7 @@ def on_shutdown():
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
     latest_sample = store.get_latest_sample()
+    latest_per_sensor = store.get_latest_sensor_samples()
     appliances = store.list_appliances()
     segments = store.list_segments(limit=10, unlabeled_only=True)
     recent_samples = store.get_recent_samples(limit=200)
@@ -450,6 +468,7 @@ def dashboard(request: Request):
             "request": request,
             "config": config,
             "latest_sample": latest_sample,
+            "latest_per_sensor": latest_per_sensor,
             "appliances": appliances,
             "segments": segments,
             "recent_samples": recent_samples,

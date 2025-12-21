@@ -24,6 +24,15 @@ class DataStore:
             )
             cursor.execute(
                 """
+                CREATE TABLE IF NOT EXISTS sensor_samples (
+                    ts INTEGER NOT NULL,
+                    sensor TEXT NOT NULL,
+                    value REAL NOT NULL
+                )
+                """
+            )
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS segments (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     start_ts INTEGER NOT NULL,
@@ -68,6 +77,14 @@ class DataStore:
             )
             self.conn.commit()
 
+    def add_sensor_sample(self, ts, sensor, value):
+        with self.lock:
+            self.conn.execute(
+                "INSERT INTO sensor_samples (ts, sensor, value) VALUES (?, ?, ?)",
+                (ts, sensor, value),
+            )
+            self.conn.commit()
+
     def get_latest_sample(self):
         with self.lock:
             cursor = self.conn.execute(
@@ -76,12 +93,41 @@ class DataStore:
             row = cursor.fetchone()
         return dict(row) if row else None
 
+    def get_latest_sensor_samples(self):
+        with self.lock:
+            cursor = self.conn.execute(
+                """
+                SELECT sensor, ts, value FROM sensor_samples
+                WHERE ts IN (
+                    SELECT MAX(ts) FROM sensor_samples GROUP BY sensor
+                )
+                """
+            )
+            rows = cursor.fetchall()
+        latest = {}
+        for row in rows:
+            latest[row["sensor"]] = {"ts": row["ts"], "value": row["value"]}
+        return latest
+
     def get_recent_samples(self, limit=200):
         with self.lock:
             cursor = self.conn.execute(
                 "SELECT ts, value FROM samples ORDER BY ts DESC LIMIT ?",
                 (limit,),
             )
+            rows = cursor.fetchall()
+        return [dict(row) for row in rows][::-1]
+
+    def get_recent_sensor_samples(self, sensor=None, limit=200):
+        query = "SELECT ts, sensor, value FROM sensor_samples"
+        params = []
+        if sensor:
+            query += " WHERE sensor = ?"
+            params.append(sensor)
+        query += " ORDER BY ts DESC LIMIT ?"
+        params.append(limit)
+        with self.lock:
+            cursor = self.conn.execute(query, params)
             rows = cursor.fetchall()
         return [dict(row) for row in rows][::-1]
 

@@ -7,7 +7,8 @@ services:
     environment:
       - HA_BASE_URL=http://192.168.2.225:8123
       - HA_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI1MWNjMTQ5NGFmZGI0YjdjYmMyYWIwMmUxMDk0NDZiYiIsImlhdCI6MTc2NjMxNjEzNCwiZXhwIjoyMDgxNjc2MTM0fQ.uOLyT72tlJXx5cW-muVDzn9aZrTJgMu0WzlM7k00dG8
-      - HA_POWER_SENSOR_ENTITY=sensor.sum_of_watts
+      # Alternative: use multiple sensors (comma separated)
+      - HA_POWER_SENSORS=sensor.strom_channel_a_power,sensor.strom_channel_b_power,sensor.strom_channel_c_power,sensor.shellyem3_485519dca648_phase_a_power,sensor.shellyem3_485519dca648_phase_b_power,sensor.shellyem3_485519dca648_phase_c_power
       - POLL_INTERVAL_SECONDS=1
       - RELATIVE_CHANGE_THRESHOLD=0.05
       - SEGMENT_PRE_SAMPLES=15

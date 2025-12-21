@@ -25,7 +25,8 @@ All configuration is handled via environment variables in `.env`:
 
 - `HA_BASE_URL`: URL of Home Assistant (e.g. `http://homeassistant.local:8123`)
 - `HA_TOKEN`: Home Assistant long-lived access token
-- `HA_POWER_SENSOR_ENTITY`: Source power sensor entity ID
+- `HA_POWER_SENSOR_ENTITY`: Source power sensor entity ID (single)
+- `HA_POWER_SENSORS`: Comma-separated list of power sensors (up to 10) for multi-phase setups; summed for segmentation
 - `POLL_INTERVAL_SECONDS`: Polling interval
 - `RELATIVE_CHANGE_THRESHOLD`: Relative change threshold (e.g. `0.2` for 20%)
 - `SEGMENT_PRE_SAMPLES`: Samples to include before a detected change
