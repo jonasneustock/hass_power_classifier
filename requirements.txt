@@ -8,3 +8,4 @@ scikit-learn
 python-multipart
 paho-mqtt
 pytest
+pytest-cov
