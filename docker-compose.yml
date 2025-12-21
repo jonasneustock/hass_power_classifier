@@ -1,12 +1,12 @@
 services:
   app:
-    image: ghcr.io/jonasneustock/hass_power_classifier:main
+    image: ghcr.io/jonasneustock/hass-power-classifier:latest
     ports:
       - "8000:8000"
     environment:
-      - HA_BASE_URL=http://homeassistant.local:8123
-      - HA_TOKEN=YOUR_LONG_LIVED_ACCESS_TOKEN
-      - HA_POWER_SENSOR_ENTITY=sensor.total_power
+      - HA_BASE_URL=http://192.168.2.225:8123
+      - HA_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI1MWNjMTQ5NGFmZGI0YjdjYmMyYWIwMmUxMDk0NDZiYiIsImlhdCI6MTc2NjMxNjEzNCwiZXhwIjoyMDgxNjc2MTM0fQ.uOLyT72tlJXx5cW-muVDzn9aZrTJgMu0WzlM7k00dG8
+      - HA_POWER_SENSOR_ENTITY=sensor.sum_of_watts
       - POLL_INTERVAL_SECONDS=5
       - SEGMENT_WINDOW_SECONDS=30
       - CHANGE_THRESHOLD_WATTS=50
