@@ -354,6 +354,14 @@ class DataStore:
             rows = cursor.fetchall()
         return {row["appliance"]: row["count"] for row in rows}
 
+    def delete_segment(self, segment_id):
+        with self.lock:
+            self.conn.execute(
+                "DELETE FROM segments WHERE id = ?",
+                (segment_id,),
+            )
+            self.conn.commit()
+
     def clear_segment_prediction(self, segment_id):
         with self.lock:
             self.conn.execute(

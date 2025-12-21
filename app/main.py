@@ -683,6 +683,13 @@ def reject_prediction(segment_id: int):
     return RedirectResponse(url=f"/segments/{segment_id}", status_code=303)
 
 
+@app.post("/segments/{segment_id}/delete")
+def delete_segment(segment_id: int):
+    store.delete_segment(segment_id)
+    log_event(f"Deleted segment #{segment_id}")
+    return RedirectResponse(url="/segments", status_code=303)
+
+
 @app.get("/models", response_class=HTMLResponse)
 def models_page(request: Request):
     labeled_segments = store.get_labeled_segments()
