@@ -64,6 +64,27 @@
   {% endif %}
 </section>
 
+{% if recent_by_sensor %}
+<section class="panel">
+  <div class="panel-header">
+    <h2>Per-sensor power</h2>
+  </div>
+  <div class="grid">
+    {% for sensor, samples in recent_by_sensor.items() %}
+    <div class="card">
+      <h3>{{ sensor }}</h3>
+      {% if samples %}
+      <canvas class="chart" width="420" height="200" data-chart='{{ samples | tojson }}' data-events='{{ detection_events | tojson }}'></canvas>
+      <p class="hint">Window: {{ samples[0].ts | format_ts }} to {{ samples[-1].ts | format_ts }}</p>
+      {% else %}
+      <p class="empty">No samples yet.</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
 <section class="panel">
   <div class="panel-header">
     <h2>Training status</h2>

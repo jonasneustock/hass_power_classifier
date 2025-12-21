@@ -479,6 +479,9 @@ def dashboard(request: Request):
     appliances = store.list_appliances()
     segments = store.list_segments(limit=10, unlabeled_only=True)
     recent_samples = store.get_recent_samples(limit=200)
+    recent_by_sensor = {}
+    for sensor in config["power_sensors"]:
+        recent_by_sensor[sensor] = store.get_recent_sensor_samples(sensor, limit=200)
     detection_events = [
         {
             "ts": seg["start_ts"],
@@ -499,6 +502,7 @@ def dashboard(request: Request):
             "appliances": appliances,
             "segments": segments,
             "recent_samples": recent_samples,
+            "recent_by_sensor": recent_by_sensor,
             "detection_events": detection_events,
             "training": training,
         },
