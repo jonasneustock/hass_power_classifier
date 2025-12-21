@@ -100,6 +100,7 @@ class PowerPoller:
         max_samples = max(min_window + 20, 50)
         self.samples = deque(maxlen=max_samples)
         self.pending_segment = None
+        self.sample_count = 0
         self.last_cleanup_ts = 0
         self.stop_event = threading.Event()
         self.thread = None
@@ -128,6 +129,7 @@ class PowerPoller:
 
             self.store.add_sample(ts, value)
             self.samples.append((ts, value))
+            self.sample_count += 1
 
             if len(self.samples) >= 2 and self.pending_segment is None:
                 prev_value = self.samples[-2][1]
@@ -137,27 +139,21 @@ class PowerPoller:
                     relative_change >= self.config["relative_change_threshold"]
                     and len(self.samples) >= self.config["segment_pre_samples"] + 1
                 ):
-                    start_index = len(self.samples) - (self.config["segment_pre_samples"] + 1)
                     self.pending_segment = {
-                        "start_index": start_index,
-                        "remaining_after": self.config["segment_post_samples"],
-                        "trigger_ts": ts,
+                        "trigger_count": self.sample_count,
                     }
 
             if self.pending_segment:
-                if ts > self.pending_segment["trigger_ts"]:
-                    self.pending_segment["remaining_after"] -= 1
-                if self.pending_segment["remaining_after"] <= 0:
+                post_samples = self.config["segment_post_samples"]
+                if self.sample_count - self.pending_segment["trigger_count"] >= post_samples:
                     samples_list = list(self.samples)
-                    start_index = self.pending_segment["start_index"]
                     segment_length = (
                         self.config["segment_pre_samples"]
                         + self.config["segment_post_samples"]
                         + 1
                     )
-                    end_index = start_index + segment_length
-                    if end_index <= len(samples_list):
-                        segment_samples = samples_list[start_index:end_index]
+                    if len(samples_list) >= segment_length:
+                        segment_samples = samples_list[-segment_length:]
                         if len(segment_samples) >= 30:
                             features = compute_features(segment_samples)
                             segment = {
