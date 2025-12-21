@@ -194,16 +194,16 @@
   <div class="flex items-center justify-between">
     <h2 class="text-lg font-semibold">Recent logs</h2>
   </div>
-  {% if logs %}
-  <div class="mt-3 space-y-2 text-sm">
-    {% for log in logs %}
-    <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-      <p class="font-semibold text-slate-800">{{ log.message }}</p>
-      <p class="text-xs text-slate-500">{{ log.ts | format_ts }} • {{ log.level }}</p>
-    </div>
-    {% endfor %}
+  <div class="mt-3 space-y-2 text-sm" data-log-feed>
+    {% if logs %}
+      {% for log in logs %}
+      <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+        <p class="font-semibold text-slate-800">{{ log.message }}</p>
+        <p class="text-xs text-slate-500">{{ log.ts | format_ts }} • {{ log.level }}</p>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="mt-2 text-sm text-slate-500">No recent activity.</p>
+    {% endif %}
   </div>
-  {% else %}
-  <p class="mt-2 text-sm text-slate-500">No recent activity.</p>
-  {% endif %}
 </section>

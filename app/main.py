@@ -104,6 +104,7 @@ class PowerPoller:
                     read_success += 1
                 except Exception as exc:
                     logging.warning("Failed to read HA sensor %s: %s", sensor, exc)
+                    log_event(f"Failed to read HA sensor {sensor}: {exc}", level="warning")
 
             if read_success == 0:
                 time.sleep(self.config["poll_interval"])
@@ -152,11 +153,17 @@ class PowerPoller:
                                 "created_ts": ts,
                             }
                             segment_id = self.store.add_segment(segment)
+                            log_event(
+                                f"Segment #{segment_id} created change={round(features['change_score']*100,1)}%"
+                            )
                             prediction = self.classifier.predict(segment)
                             if prediction:
                                 appliance, phase = prediction
                                 self.store.update_segment_prediction(
                                     segment_id, appliance, phase
+                                )
+                                log_event(
+                                    f"Prediction for segment #{segment_id}: {appliance}/{phase}"
                                 )
                                 self._push_status(appliance, phase, ts)
                     self.pending_segment = None
@@ -166,6 +173,7 @@ class PowerPoller:
                 deleted = self.store.delete_unlabeled_before(cutoff)
                 if deleted:
                     logging.info("Deleted %s unlabeled segments older than %s", deleted, cutoff)
+                    log_event(f"Cleanup removed {deleted} stale segments")
                 self.last_cleanup_ts = ts
 
             self._push_power_allocations(ts, value)
@@ -184,6 +192,7 @@ class PowerPoller:
                 topics["status_state_topic"], phase, retain=True
             ):
                 self.store.update_appliance_status(appliance, phase, ts)
+                log_event(f"Status pushed for {appliance}: {phase}")
             else:
                 logging.warning("Failed to publish MQTT status for %s", appliance)
             return
@@ -198,6 +207,7 @@ class PowerPoller:
                 },
             )
             self.store.update_appliance_status(appliance, phase, ts)
+            log_event(f"Status pushed for {appliance}: {phase}")
         except Exception as exc:
             logging.warning("Failed to push status for %s: %s", appliance, exc)
 
@@ -228,6 +238,8 @@ class PowerPoller:
                     logging.warning(
                         "Failed to publish MQTT power for %s", appliance["name"]
                     )
+                else:
+                    log_event(f"Power published for {appliance['name']}: {round(watts,2)} W")
                 continue
             try:
                 self.ha_client.set_state(
@@ -239,6 +251,7 @@ class PowerPoller:
                         "source": "ha_power_classifier",
                     },
                 )
+                log_event(f"Power set for {appliance['name']}: {round(watts,2)} W")
             except Exception as exc:
                 logging.warning("Failed to push power for %s: %s", appliance["name"], exc)
 
@@ -397,6 +410,7 @@ def compute_power_stats_by_appliance():
 def check_ha_connection():
     if not config["ha_token"] or not config["power_sensors"]:
         logging.warning("HA_TOKEN or HA_POWER_SENSORS not set")
+        log_event("HA config missing token or sensors", level="warning")
         return False
     ok = True
     for sensor in config["power_sensors"]:
@@ -404,8 +418,10 @@ def check_ha_connection():
             state = ha_client.get_state(sensor)
             float(state["state"])
             logging.info("HA connection check succeeded for %s", sensor)
+            log_event(f"HA check ok for {sensor}")
         except Exception as exc:
             logging.warning("HA connection check failed for %s: %s", sensor, exc)
+            log_event(f"HA check failed for {sensor}: {exc}", level="warning")
             ok = False
     return ok
 
@@ -421,6 +437,7 @@ def on_startup():
         else:
             for appliance in store.list_appliances():
                 publish_mqtt_discovery(appliance, config, mqtt_publisher)
+            log_event("MQTT connected")
     log_event("Application started")
     poller.start()
 
@@ -467,7 +484,6 @@ def dashboard(request: Request):
             "detection_events": detection_events,
             "training": training,
             "training_state": training_state,
-            "logs": list(recent_logs)[:30],
         },
     )
 
@@ -482,6 +498,7 @@ def appliances_page(request: Request):
             item.update(build_mqtt_topics(appliance, config))
             enriched.append(item)
         appliances = enriched
+    log_event("Appliances page viewed")
     return templates.TemplateResponse(
         "appliances.html",
         {"request": request, "appliances": appliances, "config": config},
@@ -533,6 +550,7 @@ def create_appliance(
         )
     try:
         store.add_appliance(name, status_entity_id, power_entity_id)
+        log_event(f"Appliance created: {name}")
     except sqlite3.IntegrityError:
         appliances = store.list_appliances()
         if config.get("mqtt_enabled"):
@@ -609,6 +627,7 @@ def label_segment(
 ):
     store.update_segment_label(segment_id, appliance, phase)
     maybe_train_classifier()
+    log_event(f"Labeled segment #{segment_id} as {appliance}/{phase}")
     return RedirectResponse(url=f"/segments/{segment_id}", status_code=303)
 
 
@@ -620,6 +639,9 @@ def accept_prediction(segment_id: int):
     store.update_segment_label(
         segment_id, segment["predicted_appliance"], segment["predicted_phase"]
     )
+    log_event(
+        f"Accepted prediction for segment #{segment_id}: {segment['predicted_appliance']}/{segment['predicted_phase']}"
+    )
     maybe_train_classifier()
     return RedirectResponse(url=f"/segments/{segment_id}", status_code=303)
 
@@ -627,6 +649,7 @@ def accept_prediction(segment_id: int):
 @app.post("/segments/{segment_id}/reject_prediction")
 def reject_prediction(segment_id: int):
     store.clear_segment_prediction(segment_id)
+    log_event(f"Rejected prediction for segment #{segment_id}")
     return RedirectResponse(url=f"/segments/{segment_id}", status_code=303)
 
 
@@ -645,12 +668,28 @@ def models_page(request: Request):
             "counts": counts,
             "appliances": appliances,
             "training_state": training_state,
-            "logs": list(recent_logs)[:30],
         },
     )
+
+
+@app.get("/logs", response_class=HTMLResponse)
+def logs_page(request: Request):
+    return templates.TemplateResponse(
+        "logs.html",
+        {
+            "request": request,
+            "config": config,
+        },
+    )
+
+
+@app.get("/logs/feed")
+def get_logs():
+    return {"logs": list(recent_logs)[:100]}
 
 
 @app.post("/models/retrain")
 def retrain_models():
     maybe_train_classifier()
+    log_event("Manual retrain requested")
     return RedirectResponse(url="/models", status_code=303)

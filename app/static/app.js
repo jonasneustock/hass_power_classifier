@@ -89,9 +89,48 @@
     });
   }
 
+  async function refreshLogs() {
+    var feeds = document.querySelectorAll("[data-log-feed]");
+    if (!feeds.length) return;
+    try {
+      const res = await fetch("/logs");
+      if (!res.ok) return;
+      const data = await res.json();
+      const logs = data.logs || [];
+      feeds.forEach(function (feed) {
+        feed.innerHTML = logs
+          .slice(0, 30)
+          .map(function (log) {
+            return (
+              '<div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 mb-2">' +
+              '<p class="font-semibold text-slate-800">' +
+              log.message +
+              "</p>" +
+              '<p class="text-xs text-slate-500">' +
+              log.ts +
+              " • " +
+              log.level +
+              "</p>" +
+              "</div>"
+            );
+          })
+          .join("");
+      });
+    } catch (e) {
+      console.warn("Failed to refresh logs", e);
+    }
+  }
+
+  function initLogs() {
+    refreshLogs();
+    setInterval(refreshLogs, 10000);
+  }
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initCharts);
+    document.addEventListener("DOMContentLoaded", initLogs);
   } else {
     initCharts();
+    initLogs();
   }
 })();
