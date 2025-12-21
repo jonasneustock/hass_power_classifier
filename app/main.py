@@ -182,7 +182,7 @@ class PowerPoller:
             self._push_power_allocations(ts, value)
             time.sleep(self.config["poll_interval"])
 
-def _record_phase(self, appliance, phase, ts):
+    def _record_phase(self, appliance, phase, ts):
         appliance_row = self.store.get_appliance(appliance)
         if not appliance_row:
             return
