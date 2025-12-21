@@ -318,7 +318,7 @@ if config["mqtt_enabled"]:
         client_id=config["mqtt_client_id"],
     )
 
-poller = PowerPoller(store, ha_client, classifier, config, mqtt_publisher)
+poller = PowerPoller(store, ha_client, classifier, regression_service, config, mqtt_publisher)
 recent_logs = deque(maxlen=200)
 training_state = {
     "running": False,
