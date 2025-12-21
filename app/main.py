@@ -26,8 +26,11 @@ def load_config():
         "ha_token": os.getenv("HA_TOKEN", ""),
         "power_sensor": os.getenv("HA_POWER_SENSOR_ENTITY", ""),
         "poll_interval": float(os.getenv("POLL_INTERVAL_SECONDS", "5")),
-        "segment_window": int(os.getenv("SEGMENT_WINDOW_SECONDS", "30")),
-        "change_threshold": float(os.getenv("CHANGE_THRESHOLD_WATTS", "50")),
+        "relative_change_threshold": float(
+            os.getenv("RELATIVE_CHANGE_THRESHOLD", "0.2")
+        ),
+        "segment_pre_samples": int(os.getenv("SEGMENT_PRE_SAMPLES", "15")),
+        "segment_post_samples": int(os.getenv("SEGMENT_POST_SAMPLES", "15")),
         "min_labels": int(os.getenv("MIN_LABELS_PER_APPLIANCE", "5")),
         "status_ttl": int(os.getenv("STATUS_TTL_SECONDS", "300")),
         "unlabeled_ttl": int(os.getenv("UNLABELED_TTL_SECONDS", "7200")),
@@ -41,15 +44,20 @@ def compute_features(samples):
     timestamps = np.array([s[0] for s in samples], dtype=np.float64)
     values = np.array([s[1] for s in samples], dtype=np.float64)
     duration = float(timestamps[-1] - timestamps[0]) if len(timestamps) > 1 else 0.0
-    mean = float(np.mean(values))
-    std = float(np.std(values))
-    min_val = float(np.min(values))
-    max_val = float(np.max(values))
+
+    baseline = float(values[0]) if len(values) else 0.0
+    denom = abs(baseline) if abs(baseline) > 1e-6 else 1.0
+    relative_values = (values - baseline) / denom
+
+    mean = float(np.mean(relative_values))
+    std = float(np.std(relative_values))
+    min_val = float(np.min(relative_values))
+    max_val = float(np.max(relative_values))
     change_score = max_val - min_val
 
     if len(timestamps) > 1:
         t_centered = timestamps - np.mean(timestamps)
-        v_centered = values - np.mean(values)
+        v_centered = relative_values - np.mean(relative_values)
         denom = np.sum(t_centered ** 2)
         slope = float(np.sum(t_centered * v_centered) / denom) if denom else 0.0
     else:
@@ -72,9 +80,10 @@ class PowerPoller:
         self.ha_client = ha_client
         self.classifier = classifier
         self.config = config
-        max_samples = max(int(config["segment_window"] / config["poll_interval"]) + 10, 10)
+        min_window = config["segment_pre_samples"] + config["segment_post_samples"] + 1
+        max_samples = max(min_window + 20, 50)
         self.samples = deque(maxlen=max_samples)
-        self.last_segment_ts = 0
+        self.pending_segment = None
         self.last_cleanup_ts = 0
         self.stop_event = threading.Event()
         self.thread = None
@@ -104,31 +113,59 @@ class PowerPoller:
             self.store.add_sample(ts, value)
             self.samples.append((ts, value))
 
-            if ts - self.last_segment_ts >= self.config["segment_window"]:
-                window_start = ts - self.config["segment_window"]
-                window_samples = [s for s in self.samples if s[0] >= window_start]
-                if len(window_samples) >= 2:
-                    features = compute_features(window_samples)
-                    segment = {
-                        "start_ts": window_samples[0][0],
-                        "end_ts": window_samples[-1][0],
-                        "mean": features["mean"],
-                        "std": features["std"],
-                        "max": features["max"],
-                        "min": features["min"],
-                        "duration": features["duration"],
-                        "slope": features["slope"],
-                        "change_score": features["change_score"],
-                        "candidate": features["change_score"] >= self.config["change_threshold"],
-                        "created_ts": ts,
+            if len(self.samples) >= 2 and self.pending_segment is None:
+                prev_value = self.samples[-2][1]
+                denom = abs(prev_value) if abs(prev_value) > 1e-6 else 1.0
+                relative_change = abs(value - prev_value) / denom
+                if (
+                    relative_change >= self.config["relative_change_threshold"]
+                    and len(self.samples) >= self.config["segment_pre_samples"] + 1
+                ):
+                    start_index = len(self.samples) - (self.config["segment_pre_samples"] + 1)
+                    self.pending_segment = {
+                        "start_index": start_index,
+                        "remaining_after": self.config["segment_post_samples"],
+                        "trigger_ts": ts,
                     }
-                    segment_id = self.store.add_segment(segment)
-                    prediction = self.classifier.predict(segment)
-                    if prediction:
-                        appliance, phase = prediction
-                        self.store.update_segment_prediction(segment_id, appliance, phase)
-                        self._push_status(appliance, phase, ts)
-                    self.last_segment_ts = ts
+
+            if self.pending_segment:
+                if ts > self.pending_segment["trigger_ts"]:
+                    self.pending_segment["remaining_after"] -= 1
+                if self.pending_segment["remaining_after"] <= 0:
+                    samples_list = list(self.samples)
+                    start_index = self.pending_segment["start_index"]
+                    segment_length = (
+                        self.config["segment_pre_samples"]
+                        + self.config["segment_post_samples"]
+                        + 1
+                    )
+                    end_index = start_index + segment_length
+                    if end_index <= len(samples_list):
+                        segment_samples = samples_list[start_index:end_index]
+                        if len(segment_samples) >= 30:
+                            features = compute_features(segment_samples)
+                            segment = {
+                                "start_ts": segment_samples[0][0],
+                                "end_ts": segment_samples[-1][0],
+                                "mean": features["mean"],
+                                "std": features["std"],
+                                "max": features["max"],
+                                "min": features["min"],
+                                "duration": features["duration"],
+                                "slope": features["slope"],
+                                "change_score": features["change_score"],
+                                "candidate": True,
+                                "created_ts": ts,
+                            }
+                            segment_id = self.store.add_segment(segment)
+                            prediction = self.classifier.predict(segment)
+                            if prediction:
+                                appliance, phase = prediction
+                                self.store.update_segment_prediction(
+                                    segment_id, appliance, phase
+                                )
+                                self._push_status(appliance, phase, ts)
+                    self.pending_segment = None
 
             if ts - self.last_cleanup_ts >= self.config["cleanup_interval"]:
                 cutoff = ts - self.config["unlabeled_ttl"]

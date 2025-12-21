@@ -28,7 +28,9 @@ All configuration is handled via environment variables in `.env`:
 - `HA_POWER_SENSOR_ENTITY`: Source power sensor entity ID
 - `POLL_INTERVAL_SECONDS`: Polling interval
 - `SEGMENT_WINDOW_SECONDS`: Window size for each segment
-- `CHANGE_THRESHOLD_WATTS`: Change threshold to mark candidate segments
+- `RELATIVE_CHANGE_THRESHOLD`: Relative change threshold (e.g. `0.2` for 20%)
+- `SEGMENT_PRE_SAMPLES`: Samples to include before a detected change
+- `SEGMENT_POST_SAMPLES`: Samples to include after a detected change
 - `MIN_LABELS_PER_APPLIANCE`: Minimum labels per appliance before training
 - `STATUS_TTL_SECONDS`: Time to keep a running status valid
 

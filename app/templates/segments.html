@@ -40,7 +40,7 @@
         <td>#{{ segment.id }}</td>
         <td>{{ segment.start_ts | format_ts }} - {{ segment.end_ts | format_ts }}</td>
         <td>{{ segment.mean }}</td>
-        <td>{{ segment.change_score }}</td>
+        <td>{{ (segment.change_score * 100) | round(1) }}%</td>
         <td>
           {% if segment.label_appliance %}
             {{ segment.label_appliance }} / {{ segment.label_phase }}

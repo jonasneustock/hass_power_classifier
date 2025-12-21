@@ -276,10 +276,12 @@ class DataStore:
         with self.lock:
             cursor = self.conn.execute(
                 """
-                SELECT label_appliance AS appliance, AVG(mean) AS avg_watts
-                FROM segments
-                WHERE label_phase = 'running'
-                GROUP BY label_appliance
+                SELECT s.label_appliance AS appliance, AVG(sa.value) AS avg_watts
+                FROM segments s
+                JOIN samples sa
+                  ON sa.ts BETWEEN s.start_ts AND s.end_ts
+                WHERE s.label_phase = 'running'
+                GROUP BY s.label_appliance
                 """
             )
             rows = cursor.fetchall()

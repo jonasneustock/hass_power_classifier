@@ -16,7 +16,7 @@
     </div>
     <div>
       <p class="label">Change</p>
-      <p class="value">{{ segment.change_score }}</p>
+      <p class="value">{{ (segment.change_score * 100) | round(1) }}%</p>
     </div>
   </div>
   <div class="metrics">

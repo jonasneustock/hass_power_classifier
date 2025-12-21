@@ -100,7 +100,7 @@
       <tr>
         <td>#{{ segment.id }}</td>
         <td>{{ segment.start_ts | format_ts }} - {{ segment.end_ts | format_ts }}</td>
-        <td>{{ segment.change_score }}</td>
+        <td>{{ (segment.change_score * 100) | round(1) }}%</td>
         <td>{{ 'yes' if segment.candidate else 'no' }}</td>
         <td><a href="/segments/{{ segment.id }}">Label</a></td>
       </tr>
