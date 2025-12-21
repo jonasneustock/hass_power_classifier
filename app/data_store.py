@@ -72,6 +72,7 @@ class DataStore:
             )
             self.conn.commit()
             self._ensure_appliance_columns()
+            self._ensure_segment_columns()
 
     def _ensure_appliance_columns(self):
         columns = set()
@@ -92,6 +93,18 @@ class DataStore:
                 pass
         if to_add:
             self.conn.commit()
+
+    def _ensure_segment_columns(self):
+        columns = set()
+        cursor = self.conn.execute("PRAGMA table_info(segments)")
+        for row in cursor.fetchall():
+            columns.add(row[1])
+        if "flank" not in columns:
+            try:
+                self.conn.execute("ALTER TABLE segments ADD COLUMN flank TEXT")
+                self.conn.commit()
+            except sqlite3.OperationalError:
+                pass
 
     def add_sample(self, ts, value):
         with self.lock:
@@ -176,8 +189,8 @@ class DataStore:
                     start_ts, end_ts, mean, std, max, min,
                     duration, slope, change_score, candidate,
                     label_appliance, label_phase,
-                    predicted_appliance, predicted_phase, created_ts
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    predicted_appliance, predicted_phase, flank, created_ts
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     segment["start_ts"],
@@ -194,6 +207,7 @@ class DataStore:
                     segment.get("label_phase"),
                     segment.get("predicted_appliance"),
                     segment.get("predicted_phase"),
+                    segment.get("flank"),
                     segment["created_ts"],
                 ),
             )

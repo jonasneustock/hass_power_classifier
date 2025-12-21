@@ -18,6 +18,10 @@
       <p class="text-lg font-semibold">{{ (segment.change_score * 100) | round(1) }}%</p>
     </div>
     <div class="rounded-xl bg-slate-50 p-4">
+      <p class="text-slate-500">Flank</p>
+      <p class="text-lg font-semibold">{{ segment.flank or '-' }}</p>
+    </div>
+    <div class="rounded-xl bg-slate-50 p-4">
       <p class="text-slate-500">Candidate</p>
       <p class="text-lg font-semibold">{{ 'yes' if segment.candidate else 'no' }}</p>
     </div>

@@ -30,6 +30,7 @@
           <th class="px-4 py-2 text-left font-semibold text-slate-600">Window</th>
           <th class="px-4 py-2 text-left font-semibold text-slate-600">Mean</th>
           <th class="px-4 py-2 text-left font-semibold text-slate-600">Change</th>
+          <th class="px-4 py-2 text-left font-semibold text-slate-600">Flank</th>
           <th class="px-4 py-2 text-left font-semibold text-slate-600">Label</th>
           <th class="px-4 py-2 text-left font-semibold text-slate-600">Prediction</th>
           <th class="px-4 py-2"></th>
@@ -42,6 +43,7 @@
           <td class="px-4 py-2 text-slate-700">{{ segment.start_ts | format_ts }} - {{ segment.end_ts | format_ts }}</td>
           <td class="px-4 py-2 text-slate-700">{{ segment.mean }}</td>
           <td class="px-4 py-2 text-slate-700">{{ (segment.change_score * 100) | round(1) }}%</td>
+          <td class="px-4 py-2 text-slate-700">{{ segment.flank or '-' }}</td>
           <td class="px-4 py-2 text-slate-700">
             {% if segment.label_appliance %}
               {{ segment.label_appliance }} / {{ segment.label_phase }}
