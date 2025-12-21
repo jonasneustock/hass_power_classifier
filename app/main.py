@@ -309,6 +309,20 @@ if config["mqtt_enabled"]:
     )
 
 poller = PowerPoller(store, ha_client, classifier, config, mqtt_publisher)
+recent_logs = deque(maxlen=200)
+training_state = {
+    "running": False,
+    "error": None,
+    "last_started": None,
+    "last_finished": None,
+}
+
+
+def log_event(message, level="info"):
+    ts = int(time.time())
+    entry = {"ts": ts, "message": message, "level": level}
+    recent_logs.appendleft(entry)
+    getattr(logging, level, logging.info)(message)
 
 
 def maybe_train_classifier():
@@ -322,13 +336,27 @@ def maybe_train_classifier():
     labeled_segments = store.get_labeled_segments()
     if not labeled_segments:
         return None
-    metrics = classifier.train(labeled_segments)
-    power_stats = compute_power_stats_by_appliance()
-    for name, stats in power_stats.items():
-        store.update_appliance_power_stats(
-            name, stats["min_power"], stats["mean_power"], stats["max_power"]
-        )
-    return metrics
+    training_state["running"] = True
+    training_state["error"] = None
+    training_state["last_started"] = int(time.time())
+    log_event("Training started")
+    try:
+        metrics = classifier.train(labeled_segments)
+        power_stats = compute_power_stats_by_appliance()
+        for name, stats in power_stats.items():
+            store.update_appliance_power_stats(
+                name, stats["min_power"], stats["mean_power"], stats["max_power"]
+            )
+        training_state["last_finished"] = int(time.time())
+        log_event("Training finished")
+        return metrics
+    except Exception as exc:
+        training_state["error"] = str(exc)
+        training_state["last_finished"] = int(time.time())
+        log_event(f"Training failed: {exc}", level="error")
+        return None
+    finally:
+        training_state["running"] = False
 
 
 def compute_power_stats_by_appliance():
@@ -378,6 +406,7 @@ def on_startup():
         else:
             for appliance in store.list_appliances():
                 publish_mqtt_discovery(appliance, config, mqtt_publisher)
+    log_event("Application started")
     poller.start()
 
 
@@ -386,6 +415,7 @@ def on_shutdown():
     poller.stop()
     if mqtt_publisher:
         mqtt_publisher.close()
+    log_event("Application stopped")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -421,6 +451,8 @@ def dashboard(request: Request):
             "recent_by_sensor": recent_by_sensor,
             "detection_events": detection_events,
             "training": training,
+            "training_state": training_state,
+            "logs": list(recent_logs)[:30],
         },
     )
 
@@ -597,6 +629,8 @@ def models_page(request: Request):
             "labeled_segments": labeled_segments,
             "counts": counts,
             "appliances": appliances,
+            "training_state": training_state,
+            "logs": list(recent_logs)[:30],
         },
     )
 
