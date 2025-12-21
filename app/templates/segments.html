@@ -38,7 +38,7 @@
       {% for segment in segments %}
       <tr>
         <td>#{{ segment.id }}</td>
-        <td>{{ segment.start_ts }} - {{ segment.end_ts }}</td>
+        <td>{{ segment.start_ts | format_ts }} - {{ segment.end_ts | format_ts }}</td>
         <td>{{ segment.mean }}</td>
         <td>{{ segment.change_score }}</td>
         <td>

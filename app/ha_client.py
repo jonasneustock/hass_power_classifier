@@ -1,3 +1,4 @@
+import logging
 import requests
 
 
@@ -6,6 +7,18 @@ class HAClient:
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.timeout = timeout
+        self._log_token()
+
+    def _log_token(self):
+        if not self.token:
+            logging.warning("HA token is not set")
+            return
+        token_len = len(self.token)
+        if token_len <= 8:
+            masked = "*" * token_len
+        else:
+            masked = f"{self.token[:4]}{'*' * (token_len - 8)}{self.token[-4:]}"
+        logging.info("HA token loaded: %s", masked)
 
     def _headers(self):
         return {

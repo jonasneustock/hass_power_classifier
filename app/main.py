@@ -1,8 +1,10 @@
 import logging
 import os
+import sqlite3
 import threading
 import time
 from collections import deque
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -28,6 +30,8 @@ def load_config():
         "change_threshold": float(os.getenv("CHANGE_THRESHOLD_WATTS", "50")),
         "min_labels": int(os.getenv("MIN_LABELS_PER_APPLIANCE", "5")),
         "status_ttl": int(os.getenv("STATUS_TTL_SECONDS", "300")),
+        "unlabeled_ttl": int(os.getenv("UNLABELED_TTL_SECONDS", "7200")),
+        "cleanup_interval": int(os.getenv("CLEANUP_INTERVAL_SECONDS", "300")),
         "app_title": os.getenv("APP_TITLE", "HA Power Classifier"),
         "data_dir": os.getenv("DATA_DIR", "/data"),
     }
@@ -71,6 +75,7 @@ class PowerPoller:
         max_samples = max(int(config["segment_window"] / config["poll_interval"]) + 10, 10)
         self.samples = deque(maxlen=max_samples)
         self.last_segment_ts = 0
+        self.last_cleanup_ts = 0
         self.stop_event = threading.Event()
         self.thread = None
 
@@ -124,6 +129,13 @@ class PowerPoller:
                         self.store.update_segment_prediction(segment_id, appliance, phase)
                         self._push_status(appliance, phase, ts)
                     self.last_segment_ts = ts
+
+            if ts - self.last_cleanup_ts >= self.config["cleanup_interval"]:
+                cutoff = ts - self.config["unlabeled_ttl"]
+                deleted = self.store.delete_unlabeled_before(cutoff)
+                if deleted:
+                    logging.info("Deleted %s unlabeled segments older than %s", deleted, cutoff)
+                self.last_cleanup_ts = ts
 
             self._push_power_allocations(ts, value)
             time.sleep(self.config["poll_interval"])
@@ -195,6 +207,16 @@ app.mount("/static", StaticFiles(directory=str(base_dir / "static")), name="stat
 templates = Jinja2Templates(directory=str(base_dir / "templates"))
 
 
+def format_ts(ts):
+    try:
+        return datetime.fromtimestamp(int(ts)).strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return str(ts)
+
+
+templates.env.filters["format_ts"] = format_ts
+
+
 data_dir = Path(config["data_dir"])
 data_dir.mkdir(parents=True, exist_ok=True)
 store = DataStore(str(data_dir / "power_classifier.sqlite"))
@@ -222,10 +244,23 @@ def maybe_train_classifier():
     return metrics
 
 
-@app.on_event("startup")
-def on_startup():
+def check_ha_connection():
     if not config["ha_token"] or not config["power_sensor"]:
         logging.warning("HA_TOKEN or HA_POWER_SENSOR_ENTITY not set")
+        return False
+    try:
+        state = ha_client.get_state(config["power_sensor"])
+        float(state["state"])
+    except Exception as exc:
+        logging.warning("HA connection check failed: %s", exc)
+        return False
+    logging.info("HA connection check succeeded for %s", config["power_sensor"])
+    return True
+
+
+@app.on_event("startup")
+def on_startup():
+    check_ha_connection()
     poller.start()
 
 
@@ -239,6 +274,7 @@ def dashboard(request: Request):
     latest_sample = store.get_latest_sample()
     appliances = store.list_appliances()
     segments = store.list_segments(limit=10, unlabeled_only=True)
+    recent_samples = store.get_recent_samples(limit=200)
     training = classifier.last_metrics
     return templates.TemplateResponse(
         "index.html",
@@ -248,6 +284,7 @@ def dashboard(request: Request):
             "latest_sample": latest_sample,
             "appliances": appliances,
             "segments": segments,
+            "recent_samples": recent_samples,
             "training": training,
         },
     )
@@ -264,11 +301,58 @@ def appliances_page(request: Request):
 
 @app.post("/appliances")
 def create_appliance(
+    request: Request,
     name: str = Form(...),
     status_entity_id: str = Form(...),
     power_entity_id: str = Form(...),
 ):
-    store.add_appliance(name, status_entity_id, power_entity_id)
+    errors = []
+    try:
+        ha_client.get_state(status_entity_id)
+    except Exception as exc:
+        logging.warning("Status entity check failed: %s", exc)
+        errors.append("Status entity ID not available in Home Assistant.")
+    try:
+        ha_client.get_state(power_entity_id)
+    except Exception as exc:
+        logging.warning("Power entity check failed: %s", exc)
+        errors.append("Power entity ID not available in Home Assistant.")
+    if errors:
+        appliances = store.list_appliances()
+        return templates.TemplateResponse(
+            "appliances.html",
+            {
+                "request": request,
+                "appliances": appliances,
+                "config": config,
+                "error": " ".join(errors),
+                "form": {
+                    "name": name,
+                    "status_entity_id": status_entity_id,
+                    "power_entity_id": power_entity_id,
+                },
+            },
+            status_code=400,
+        )
+    try:
+        store.add_appliance(name, status_entity_id, power_entity_id)
+    except sqlite3.IntegrityError:
+        appliances = store.list_appliances()
+        return templates.TemplateResponse(
+            "appliances.html",
+            {
+                "request": request,
+                "appliances": appliances,
+                "config": config,
+                "error": "Appliance name already exists.",
+                "form": {
+                    "name": name,
+                    "status_entity_id": status_entity_id,
+                    "power_entity_id": power_entity_id,
+                },
+            },
+            status_code=400,
+        )
     return RedirectResponse(url="/appliances", status_code=303)
 
 

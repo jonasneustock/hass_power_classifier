@@ -76,6 +76,15 @@ class DataStore:
             row = cursor.fetchone()
         return dict(row) if row else None
 
+    def get_recent_samples(self, limit=200):
+        with self.lock:
+            cursor = self.conn.execute(
+                "SELECT ts, value FROM samples ORDER BY ts DESC LIMIT ?",
+                (limit,),
+            )
+            rows = cursor.fetchall()
+        return [dict(row) for row in rows][::-1]
+
     def get_samples_between(self, start_ts, end_ts):
         with self.lock:
             cursor = self.conn.execute(
@@ -137,6 +146,20 @@ class DataStore:
             cursor = self.conn.execute(query, params)
             rows = cursor.fetchall()
         return [dict(row) for row in rows]
+
+    def delete_unlabeled_before(self, cutoff_ts):
+        with self.lock:
+            cursor = self.conn.execute(
+                """
+                DELETE FROM segments
+                WHERE label_appliance IS NULL
+                  AND label_phase IS NULL
+                  AND end_ts < ?
+                """,
+                (cutoff_ts,),
+            )
+            self.conn.commit()
+        return cursor.rowcount
 
     def get_segment(self, segment_id):
         with self.lock:

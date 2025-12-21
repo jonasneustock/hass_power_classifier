@@ -4,18 +4,21 @@
   <div class="panel-header">
     <h2>Register appliance</h2>
   </div>
+  {% if error %}
+  <div class="alert">{{ error }}</div>
+  {% endif %}
   <form class="form" method="post" action="/appliances">
     <label>
       Appliance name
-      <input type="text" name="name" required />
+      <input type="text" name="name" value="{{ form.name if form }}" required />
     </label>
     <label>
       Status entity id
-      <input type="text" name="status_entity_id" placeholder="sensor.toaster_status" required />
+      <input type="text" name="status_entity_id" placeholder="sensor.toaster_status" value="{{ form.status_entity_id if form }}" required />
     </label>
     <label>
       Power entity id
-      <input type="text" name="power_entity_id" placeholder="sensor.toaster_power" required />
+      <input type="text" name="power_entity_id" placeholder="sensor.toaster_power" value="{{ form.power_entity_id if form }}" required />
     </label>
     <button type="submit">Create appliance</button>
   </form>

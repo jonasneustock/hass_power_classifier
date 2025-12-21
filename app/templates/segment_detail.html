@@ -8,7 +8,7 @@
   <div class="metrics">
     <div>
       <p class="label">Window</p>
-      <p class="value">{{ segment.start_ts }} - {{ segment.end_ts }}</p>
+      <p class="value">{{ segment.start_ts | format_ts }} - {{ segment.end_ts | format_ts }}</p>
     </div>
     <div>
       <p class="label">Mean</p>
@@ -33,6 +33,17 @@
       <p class="value">{{ 'yes' if segment.candidate else 'no' }}</p>
     </div>
   </div>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <h2>Segment power change</h2>
+  </div>
+  {% if samples %}
+  <canvas class="chart" width="900" height="260" data-chart='{{ samples | tojson }}'></canvas>
+  {% else %}
+  <p class="empty">No samples recorded for this window.</p>
+  {% endif %}
 </section>
 
 <section class="panel">
@@ -82,7 +93,7 @@
     <tbody>
       {% for sample in samples %}
       <tr>
-        <td>{{ sample.ts }}</td>
+        <td>{{ sample.ts | format_ts }}</td>
         <td>{{ sample.value }}</td>
       </tr>
       {% endfor %}

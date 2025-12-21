@@ -198,6 +198,15 @@ button.ghost, a.ghost {
   font-style: italic;
 }
 
+.alert {
+  padding: 0.7rem 1rem;
+  border-radius: 12px;
+  background: rgba(196, 93, 60, 0.12);
+  color: var(--accent);
+  border: 1px solid rgba(196, 93, 60, 0.4);
+  margin-bottom: 1rem;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -225,6 +234,15 @@ a {
 .hint {
   margin-top: 0.6rem;
   color: var(--muted);
+}
+
+.chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  margin-top: 0.5rem;
 }
 
 @media (max-width: 800px) {

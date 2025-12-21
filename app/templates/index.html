@@ -13,11 +13,28 @@
     </div>
     <div>
       <p class="label">Last update</p>
-      <p class="value">{{ latest_sample.ts }}</p>
+      <p class="value">{{ latest_sample.ts | format_ts }}</p>
     </div>
   </div>
   {% else %}
   <p class="empty">No samples yet. Verify Home Assistant settings.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <h2>Overall power change</h2>
+    {% if recent_samples %}
+    <span class="tag">{{ recent_samples | length }} samples</span>
+    {% endif %}
+  </div>
+  {% if recent_samples %}
+  <canvas class="chart" width="900" height="260" data-chart='{{ recent_samples | tojson }}'></canvas>
+  <p class="hint">
+    Window: {{ recent_samples[0].ts | format_ts }} to {{ recent_samples[-1].ts | format_ts }}
+  </p>
+  {% else %}
+  <p class="empty">No samples yet.</p>
   {% endif %}
 </section>
 
@@ -82,7 +99,7 @@
       {% for segment in segments %}
       <tr>
         <td>#{{ segment.id }}</td>
-        <td>{{ segment.start_ts }} - {{ segment.end_ts }}</td>
+        <td>{{ segment.start_ts | format_ts }} - {{ segment.end_ts | format_ts }}</td>
         <td>{{ segment.change_score }}</td>
         <td>{{ 'yes' if segment.candidate else 'no' }}</td>
         <td><a href="/segments/{{ segment.id }}">Label</a></td>
