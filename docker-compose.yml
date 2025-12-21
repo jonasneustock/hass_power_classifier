@@ -1,10 +1,19 @@
 services:
   app:
-    build: .
+    image: ghcr.io/jonasneustock/hass_power_classifier:main
     ports:
       - "8000:8000"
-    env_file:
-      - .env
+    environment:
+      - HA_BASE_URL=http://homeassistant.local:8123
+      - HA_TOKEN=YOUR_LONG_LIVED_ACCESS_TOKEN
+      - HA_POWER_SENSOR_ENTITY=sensor.total_power
+      - POLL_INTERVAL_SECONDS=5
+      - SEGMENT_WINDOW_SECONDS=30
+      - CHANGE_THRESHOLD_WATTS=50
+      - MIN_LABELS_PER_APPLIANCE=5
+      - STATUS_TTL_SECONDS=300
+      - APP_TITLE=HA Power Classifier
+      - DATA_DIR=/data
     volumes:
       - ha_power_classifier_data:/data
 volumes:

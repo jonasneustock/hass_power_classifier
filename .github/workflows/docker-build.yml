@@ -15,4 +15,4 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Build image
-        run: docker build -t ha-power-classifier:ci .
+        run: docker build -t hass-power-classifier:main .
