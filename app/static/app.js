@@ -61,9 +61,11 @@
         ctx.moveTo(ex, padding);
         ctx.lineTo(ex, height - padding);
         ctx.stroke();
-        ctx.fillStyle = ctx.strokeStyle;
-        ctx.font = "11px 'Space Grotesk', sans-serif";
-        ctx.fillText(ev.appliance || ev.phase, ex + 4, padding + 12);
+        if (canvas.dataset.showLabels === "true") {
+          ctx.fillStyle = ctx.strokeStyle;
+          ctx.font = "11px 'Space Grotesk', sans-serif";
+          ctx.fillText(ev.appliance || ev.phase, ex + 4, padding + 12);
+        }
       });
     }
 
@@ -85,6 +87,30 @@
         renderLineChart(canvas, points, events);
       } catch (error) {
         console.warn("Failed to render chart", error);
+      }
+    });
+
+    var groupCharts = document.querySelectorAll("canvas[data-chart-group]");
+    groupCharts.forEach(function (canvas) {
+      try {
+        var groupData = JSON.parse(canvas.dataset.chartGroup || "{}");
+        var combined = [];
+        Object.keys(groupData).forEach(function (sensor) {
+          var series = groupData[sensor] || [];
+          series.forEach(function (p) {
+            combined.push({ ts: p.ts, value: p.value, sensor: sensor });
+          });
+        });
+        combined.sort(function (a, b) {
+          return Number(a.ts) - Number(b.ts);
+        });
+        var events = [];
+        if (canvas.dataset.events) {
+          events = JSON.parse(canvas.dataset.events);
+        }
+        renderLineChart(canvas, combined, events);
+      } catch (error) {
+        console.warn("Failed to render grouped chart", error);
       }
     });
   }
