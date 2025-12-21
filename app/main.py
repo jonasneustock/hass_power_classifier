@@ -63,10 +63,11 @@ def load_config():
 
 
 class PowerPoller:
-    def __init__(self, store, ha_client, classifier, config, mqtt_publisher=None):
+    def __init__(self, store, ha_client, classifier, regression_service, config, mqtt_publisher=None):
         self.store = store
         self.ha_client = ha_client
         self.classifier = classifier
+        self.regression_service = regression_service
         self.config = config
         self.mqtt_publisher = mqtt_publisher
         self.sensors = config["power_sensors"]
@@ -78,6 +79,7 @@ class PowerPoller:
         self.last_cleanup_ts = 0
         self.stop_event = threading.Event()
         self.thread = None
+        self.active_sessions = {}
 
     def start(self):
         if self.thread and self.thread.is_alive():
@@ -179,13 +181,17 @@ class PowerPoller:
             self._push_power_allocations(ts, value)
             time.sleep(self.config["poll_interval"])
 
-    def _record_phase(self, appliance, phase, ts):
+def _record_phase(self, appliance, phase, ts):
         appliance_row = self.store.get_appliance(appliance)
         if not appliance_row:
             return
         last_status = appliance_row.get("last_status")
         if last_status == phase:
             return
+        if phase == "start":
+            self.active_sessions[appliance] = ts
+        if phase == "stop":
+            self.active_sessions.pop(appliance, None)
         self.store.update_appliance_status(appliance, phase, ts)
         log_event(f"Phase update for {appliance}: {phase}")
         if last_status == "start" and phase == "stop":
@@ -213,49 +219,44 @@ class PowerPoller:
                     logging.warning("Failed to reset power for %s: %s", appliance, exc)
 
     def _push_power_allocations(self, ts, total_power):
-        appliances = self.store.list_appliances()
-        active = []
-        for appliance in appliances:
-            last_ts = appliance.get("last_status_ts") or 0
-            if appliance.get("last_status") != "start":
-                continue
-            if ts - last_ts > self.config["status_ttl"]:
-                continue
-            mean_power = appliance.get("mean_power") or appliance.get("running_watts")
-            if not mean_power or mean_power <= 0:
-                continue
-            active.append({**appliance, "mean_power": mean_power})
-
-        if not active:
+        appliances = {a["name"]: a for a in self.store.list_appliances()}
+        if not self.active_sessions:
             return
 
-        for appliance in active:
-            watts = appliance["mean_power"]
-            proportion = 1.0
+        for appliance_name, start_ts in list(self.active_sessions.items()):
+            appliance = appliances.get(appliance_name)
+            if not appliance:
+                continue
+            elapsed = max(0, ts - start_ts)
+            predicted = self.regression_service.predict(appliance_name, elapsed)
+            watts = predicted
+            if watts is None or watts <= 0:
+                watts = appliance.get("mean_power") or appliance.get("running_watts") or 0
+            if watts <= 0:
+                continue
             if self.config.get("mqtt_enabled") and self.mqtt_publisher:
                 topics = build_mqtt_topics(appliance, self.config)
                 if not self.mqtt_publisher.publish_value(
                     topics["power_state_topic"], round(watts, 2), retain=True
                 ):
                     logging.warning(
-                        "Failed to publish MQTT power for %s", appliance["name"]
+                        "Failed to publish MQTT power for %s", appliance_name
                     )
                 else:
-                    log_event(f"Power published for {appliance['name']}: {round(watts,2)} W")
+                    log_event(f"Power published for {appliance_name}: {round(watts,2)} W")
                 continue
             try:
                 self.ha_client.set_state(
                     appliance["power_entity_id"],
                     round(watts, 2),
                     {
-                        "appliance": appliance["name"],
-                        "proportion": round(proportion, 3),
+                        "appliance": appliance_name,
                         "source": "ha_power_classifier",
                     },
                 )
-                log_event(f"Power set for {appliance['name']}: {round(watts,2)} W")
+                log_event(f"Power set for {appliance_name}: {round(watts,2)} W")
             except Exception as exc:
-                logging.warning("Failed to push power for %s: %s", appliance["name"], exc)
+                logging.warning("Failed to push power for %s: %s", appliance_name, exc)
 
 
 config = load_config()
@@ -305,6 +306,7 @@ data_dir.mkdir(parents=True, exist_ok=True)
 store = DataStore(str(data_dir / "power_classifier.sqlite"))
 ha_client = HAClient(config["ha_base_url"], config["ha_token"])
 classifier = ClassifierService(str(data_dir / "model.pkl"))
+regression_service = RegressionService()
 mqtt_publisher = None
 if config["mqtt_enabled"]:
     mqtt_publisher = MqttPublisher(
@@ -359,12 +361,17 @@ def _run_training():
             training_state["last_finished"] = int(time.time())
             return
         labeled_segments = store.get_labeled_segments()
-        labeled_segments = [seg for seg in labeled_segments if seg["label_appliance"] in eligible]
+        labeled_segments = [
+            seg
+            for seg in labeled_segments
+            if seg["label_appliance"] in eligible and seg["label_phase"] != "base"
+        ]
         if not labeled_segments:
             log_event("Training skipped: no labeled segments", level="warning")
             training_state["last_finished"] = int(time.time())
             return
         classifier.train(labeled_segments, eligible_appliances=eligible)
+        regression_service.train(labeled_segments, store)
         power_stats = compute_power_stats_by_appliance()
         for name, stats in power_stats.items():
             store.update_appliance_power_stats(
@@ -392,7 +399,11 @@ def compute_power_stats_by_appliance():
     stats = {}
     for appliance in appliances:
         name = appliance["name"]
-        labeled = [seg for seg in labeled_segments if seg["label_appliance"] == name]
+        labeled = [
+            seg
+            for seg in labeled_segments
+            if seg["label_appliance"] == name and seg["label_phase"] != "base"
+        ]
         values = []
         for seg in labeled:
             samples = store.get_samples_between(seg["start_ts"], seg["end_ts"])
