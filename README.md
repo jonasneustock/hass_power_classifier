@@ -6,9 +6,9 @@ Dockerized FastAPI app that connects to Home Assistant, records a power sensor, 
 - Connects to a Home Assistant instance via REST API
 - Polls a power sensor on a fixed interval
 - Builds rolling segments and flags candidate changes
-- Web UI for labeling segments as `start`, `running`, or `stop` per appliance
+- Web UI for labeling segments as `start` or `stop` per appliance
 - Trains a classifier once enough labels exist per appliance
-- Pushes status updates and per-appliance power estimates back to Home Assistant via REST or MQTT discovery
+- Pushes start/stop status updates and per-appliance power estimates back to Home Assistant via REST or MQTT discovery
 
 ## Quick start
 1. Copy `.env.example` to `.env` and fill in the Home Assistant details.

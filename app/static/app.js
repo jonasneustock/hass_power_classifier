@@ -1,5 +1,5 @@
 (function () {
-  function renderLineChart(canvas, points) {
+  function renderLineChart(canvas, points, events) {
     var ctx = canvas.getContext("2d");
     var width = canvas.width;
     var height = canvas.height;
@@ -17,12 +17,17 @@
     }
 
     var values = points.map(function (p) { return Number(p.value); });
+    var times = points.map(function (p) { return Number(p.ts); });
     var minVal = Math.min.apply(null, values);
     var maxVal = Math.max.apply(null, values);
     var span = maxVal - minVal;
     if (span === 0) {
       span = 1;
     }
+
+    var minTs = Math.min.apply(null, times);
+    var maxTs = Math.max.apply(null, times);
+    var tsSpan = maxTs - minTs || 1;
 
     ctx.strokeStyle = "rgba(196, 93, 60, 0.25)";
     ctx.lineWidth = 1;
@@ -36,7 +41,7 @@
     ctx.lineWidth = 2;
     ctx.beginPath();
     points.forEach(function (point, index) {
-      var x = padding + (index / (points.length - 1)) * (width - padding * 2);
+      var x = padding + ((Number(point.ts) - minTs) / tsSpan) * (width - padding * 2);
       var normalized = (Number(point.value) - minVal) / span;
       var y = height - padding - normalized * (height - padding * 2);
       if (index === 0) {
@@ -46,6 +51,21 @@
       }
     });
     ctx.stroke();
+
+    if (events && events.length) {
+      events.forEach(function (ev) {
+        var ex = padding + ((Number(ev.ts) - minTs) / tsSpan) * (width - padding * 2);
+        ctx.strokeStyle = ev.phase === "start" ? "#2f855a" : "#9b2c2c";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(ex, padding);
+        ctx.lineTo(ex, height - padding);
+        ctx.stroke();
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.font = "11px 'Space Grotesk', sans-serif";
+        ctx.fillText(ev.appliance || ev.phase, ex + 4, padding + 12);
+      });
+    }
 
     ctx.fillStyle = "#6f665c";
     ctx.font = "12px 'Space Grotesk', sans-serif";
@@ -58,7 +78,11 @@
     charts.forEach(function (canvas) {
       try {
         var points = JSON.parse(canvas.dataset.chart);
-        renderLineChart(canvas, points);
+        var events = [];
+        if (canvas.dataset.events) {
+          events = JSON.parse(canvas.dataset.events);
+        }
+        renderLineChart(canvas, points, events);
       } catch (error) {
         console.warn("Failed to render chart", error);
       }

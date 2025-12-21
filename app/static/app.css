@@ -207,6 +207,12 @@ button.ghost, a.ghost {
   margin-bottom: 1rem;
 }
 
+.prediction .actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

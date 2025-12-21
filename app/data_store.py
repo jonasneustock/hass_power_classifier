@@ -63,10 +63,34 @@ class DataStore:
                     running_watts REAL DEFAULT 0,
                     last_status TEXT,
                     last_status_ts INTEGER,
+                    min_power REAL,
+                    mean_power REAL,
+                    max_power REAL,
                     created_ts INTEGER NOT NULL
                 )
                 """
             )
+            self.conn.commit()
+            self._ensure_appliance_columns()
+
+    def _ensure_appliance_columns(self):
+        columns = set()
+        cursor = self.conn.execute("PRAGMA table_info(appliances)")
+        for row in cursor.fetchall():
+            columns.add(row[1])
+        to_add = []
+        if "min_power" not in columns:
+            to_add.append(("min_power", "REAL"))
+        if "mean_power" not in columns:
+            to_add.append(("mean_power", "REAL"))
+        if "max_power" not in columns:
+            to_add.append(("max_power", "REAL"))
+        for col, col_type in to_add:
+            try:
+                self.conn.execute(f"ALTER TABLE appliances ADD COLUMN {col} {col_type}")
+            except sqlite3.OperationalError:
+                pass
+        if to_add:
             self.conn.commit()
 
     def add_sample(self, ts, value):
@@ -281,6 +305,18 @@ class DataStore:
             )
             self.conn.commit()
 
+    def update_appliance_power_stats(self, name, min_power, mean_power, max_power):
+        with self.lock:
+            self.conn.execute(
+                """
+                UPDATE appliances
+                SET min_power = ?, mean_power = ?, max_power = ?
+                WHERE name = ?
+                """,
+                (min_power, mean_power, max_power, name),
+            )
+            self.conn.commit()
+
     def update_appliance_status(self, name, status, ts):
         with self.lock:
             self.conn.execute(
@@ -318,17 +354,14 @@ class DataStore:
             rows = cursor.fetchall()
         return {row["appliance"]: row["count"] for row in rows}
 
-    def get_running_segments_by_appliance(self):
+    def clear_segment_prediction(self, segment_id):
         with self.lock:
-            cursor = self.conn.execute(
+            self.conn.execute(
                 """
-                SELECT s.label_appliance AS appliance, AVG(sa.value) AS avg_watts
-                FROM segments s
-                JOIN samples sa
-                  ON sa.ts BETWEEN s.start_ts AND s.end_ts
-                WHERE s.label_phase = 'running'
-                GROUP BY s.label_appliance
-                """
+                UPDATE segments
+                SET predicted_appliance = NULL, predicted_phase = NULL
+                WHERE id = ?
+                """,
+                (segment_id,),
             )
-            rows = cursor.fetchall()
-        return {row["appliance"]: row["avg_watts"] for row in rows}
+            self.conn.commit()

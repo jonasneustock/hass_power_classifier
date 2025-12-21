@@ -1,0 +1,85 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h2>Model status</h2>
+    <form method="post" action="/models/retrain">
+      <button type="submit">Retrain</button>
+    </form>
+  </div>
+  {% if training %}
+  <div class="metrics">
+    <div>
+      <p class="label">Samples</p>
+      <p class="value">{{ training.samples }}</p>
+    </div>
+    <div>
+      <p class="label">Classes</p>
+      <p class="value">{{ training.classes }}</p>
+    </div>
+  </div>
+  {% else %}
+  <p class="empty">Not trained yet. Add labels then retrain.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <h2>Training set by appliance</h2>
+  </div>
+  {% if counts %}
+  <table>
+    <thead>
+      <tr>
+        <th>Appliance</th>
+        <th>Labels</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for name, count in counts.items() %}
+      <tr>
+        <td>{{ name }}</td>
+        <td>{{ count }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No labeled segments yet.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <h2>Training segments</h2>
+  </div>
+  {% if labeled_segments %}
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Appliance</th>
+        <th>Phase</th>
+        <th>Window</th>
+        <th>Mean</th>
+        <th>Change</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for segment in labeled_segments %}
+      <tr>
+        <td>#{{ segment.id }}</td>
+        <td>{{ segment.label_appliance }}</td>
+        <td>{{ segment.label_phase }}</td>
+        <td>{{ segment.start_ts | format_ts }} - {{ segment.end_ts | format_ts }}</td>
+        <td>{{ segment.mean }}</td>
+        <td>{{ (segment.change_score * 100) | round(1) }}%</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No labeled segments yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

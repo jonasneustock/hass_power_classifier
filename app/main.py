@@ -239,24 +239,20 @@ class PowerPoller:
         active = []
         for appliance in appliances:
             last_ts = appliance.get("last_status_ts") or 0
-            if appliance.get("last_status") != "running":
+            if appliance.get("last_status") != "start":
                 continue
             if ts - last_ts > self.config["status_ttl"]:
                 continue
-            if (appliance.get("running_watts") or 0) <= 0:
+            mean_power = appliance.get("mean_power") or appliance.get("running_watts")
+            if not mean_power or mean_power <= 0:
                 continue
-            active.append(appliance)
+            active.append({**appliance, "mean_power": mean_power})
 
         if not active:
             return
 
-        total_running = sum(a["running_watts"] for a in active)
-        if total_running <= 0:
-            return
-
         for appliance in active:
-            proportion = appliance["running_watts"] / total_running
-            watts = proportion * total_power
+            watts = appliance["mean_power"]
             if self.config.get("mqtt_enabled") and self.mqtt_publisher:
                 topics = build_mqtt_topics(appliance, self.config)
                 if not self.mqtt_publisher.publish_value(
@@ -411,10 +407,32 @@ def maybe_train_classifier():
     if not labeled_segments:
         return None
     metrics = classifier.train(labeled_segments)
-    running_watts = store.get_running_segments_by_appliance()
-    for name, avg_watts in running_watts.items():
-        store.update_appliance_running_watts(name, avg_watts)
+    power_stats = compute_power_stats_by_appliance()
+    for name, stats in power_stats.items():
+        store.update_appliance_power_stats(
+            name, stats["min_power"], stats["mean_power"], stats["max_power"]
+        )
     return metrics
+
+
+def compute_power_stats_by_appliance():
+    appliances = store.list_appliances()
+    labeled_segments = store.get_labeled_segments()
+    stats = {}
+    for appliance in appliances:
+        name = appliance["name"]
+        labeled = [seg for seg in labeled_segments if seg["label_appliance"] == name]
+        values = []
+        for seg in labeled:
+            samples = store.get_samples_between(seg["start_ts"], seg["end_ts"])
+            values.extend([s["value"] for s in samples])
+        if values:
+            stats[name] = {
+                "min_power": float(np.min(values)),
+                "mean_power": float(np.mean(values)),
+                "max_power": float(np.max(values)),
+            }
+    return stats
 
 
 def check_ha_connection():
@@ -461,6 +479,15 @@ def dashboard(request: Request):
     appliances = store.list_appliances()
     segments = store.list_segments(limit=10, unlabeled_only=True)
     recent_samples = store.get_recent_samples(limit=200)
+    detection_events = [
+        {
+            "ts": seg["start_ts"],
+            "appliance": seg.get("predicted_appliance") or seg.get("label_appliance"),
+            "phase": seg.get("predicted_phase") or seg.get("label_phase"),
+        }
+        for seg in store.list_segments(limit=100, unlabeled_only=False)
+        if (seg.get("predicted_phase") or seg.get("label_phase")) in ("start", "stop")
+    ]
     training = classifier.last_metrics
     return templates.TemplateResponse(
         "index.html",
@@ -472,6 +499,7 @@ def dashboard(request: Request):
             "appliances": appliances,
             "segments": segments,
             "recent_samples": recent_samples,
+            "detection_events": detection_events,
             "training": training,
         },
     )
@@ -615,3 +643,45 @@ def label_segment(
     store.update_segment_label(segment_id, appliance, phase)
     maybe_train_classifier()
     return RedirectResponse(url=f"/segments/{segment_id}", status_code=303)
+
+
+@app.post("/segments/{segment_id}/accept_prediction")
+def accept_prediction(segment_id: int):
+    segment = store.get_segment(segment_id)
+    if not segment or not segment.get("predicted_appliance") or not segment.get("predicted_phase"):
+        return RedirectResponse(url=f"/segments/{segment_id}", status_code=303)
+    store.update_segment_label(
+        segment_id, segment["predicted_appliance"], segment["predicted_phase"]
+    )
+    maybe_train_classifier()
+    return RedirectResponse(url=f"/segments/{segment_id}", status_code=303)
+
+
+@app.post("/segments/{segment_id}/reject_prediction")
+def reject_prediction(segment_id: int):
+    store.clear_segment_prediction(segment_id)
+    return RedirectResponse(url=f"/segments/{segment_id}", status_code=303)
+
+
+@app.get("/models", response_class=HTMLResponse)
+def models_page(request: Request):
+    labeled_segments = store.get_labeled_segments()
+    counts = store.get_label_counts_by_appliance()
+    appliances = store.list_appliances()
+    return templates.TemplateResponse(
+        "models.html",
+        {
+            "request": request,
+            "config": config,
+            "training": classifier.last_metrics,
+            "labeled_segments": labeled_segments,
+            "counts": counts,
+            "appliances": appliances,
+        },
+    )
+
+
+@app.post("/models/retrain")
+def retrain_models():
+    maybe_train_classifier()
+    return RedirectResponse(url="/models", status_code=303)

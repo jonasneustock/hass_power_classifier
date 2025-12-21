@@ -55,7 +55,7 @@
     {% endif %}
   </div>
   {% if recent_samples %}
-  <canvas class="chart" width="900" height="260" data-chart='{{ recent_samples | tojson }}'></canvas>
+  <canvas class="chart" width="900" height="260" data-chart='{{ recent_samples | tojson }}' data-events='{{ detection_events | tojson }}'></canvas>
   <p class="hint">
     Window: {{ recent_samples[0].ts | format_ts }} to {{ recent_samples[-1].ts | format_ts }}
   </p>
@@ -95,7 +95,7 @@
       <h3>{{ appliance.name }}</h3>
       <p>Status entity: {{ appliance.status_entity_id }}</p>
       <p>Power entity: {{ appliance.power_entity_id }}</p>
-      <p>Running watts: {{ appliance.running_watts }}</p>
+      <p>Learned power (min/mean/max): {{ appliance.min_power or 0 }} / {{ appliance.mean_power or appliance.running_watts or 0 }} / {{ appliance.max_power or 0 }} W</p>
       <p>Last status: {{ appliance.last_status or 'unknown' }}</p>
     </div>
     {% endfor %}

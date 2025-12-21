@@ -64,7 +64,6 @@
       Phase
       <select name="phase" required>
         <option value="start">start</option>
-        <option value="running">running</option>
         <option value="stop">stop</option>
       </select>
     </label>
@@ -74,7 +73,17 @@
   <p class="hint">Current label: {{ segment.label_appliance }} / {{ segment.label_phase }}</p>
   {% endif %}
   {% if segment.predicted_appliance %}
-  <p class="hint">Prediction: {{ segment.predicted_appliance }} / {{ segment.predicted_phase }}</p>
+  <div class="prediction">
+    <p class="hint">Proposed: {{ segment.predicted_appliance }} / {{ segment.predicted_phase }}</p>
+    <div class="actions">
+      <form method="post" action="/segments/{{ segment.id }}/accept_prediction">
+        <button type="submit">Accept</button>
+      </form>
+      <form method="post" action="/segments/{{ segment.id }}/reject_prediction">
+        <button type="submit" class="ghost">Decline</button>
+      </form>
+    </div>
+  </div>
   {% endif %}
 </section>
 

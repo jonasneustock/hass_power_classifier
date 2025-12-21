@@ -47,7 +47,7 @@
         <code>{{ appliance.power_config_topic }}</code>
       </p>
       {% endif %}
-      <p>Running watts: {{ appliance.running_watts }}</p>
+      <p>Learned power (min/mean/max): {{ appliance.min_power or 0 }} / {{ appliance.mean_power or appliance.running_watts or 0 }} / {{ appliance.max_power or 0 }} W</p>
       <p>Last status: {{ appliance.last_status or 'unknown' }}</p>
     </div>
     {% endfor %}
