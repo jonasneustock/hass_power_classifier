@@ -43,6 +43,21 @@ All configuration is handled via environment variables in `.env`:
 - `MQTT_CLIENT_ID`: Client ID for the MQTT connection
 - `MQTT_DEVICE_ID`: Device identifier used for discovery unique IDs
 
+## Test coverage
+
+Local coverage snapshot (via `pytest --cov=app --cov-report=term`):
+
+| Module | Stmts | Miss | Cover |
+| --- | ---:| ---:| ---:|
+| app/__init__.py | 0 | 0 | 100% |
+| app/classifier.py | 52 | 52 | 0% |
+| app/data_store.py | 161 | 40 | 75% |
+| app/ha_client.py | 32 | 32 | 0% |
+| app/main.py | 372 | 372 | 0% |
+| app/mqtt_client.py | 53 | 53 | 0% |
+| app/utils.py | 50 | 1 | 98% |
+| **Total** | 720 | 550 | **24%** |
+
 ## Notes
 - When MQTT is enabled, the app publishes MQTT discovery topics for each appliance and pushes status/power to `MQTT_BASE_TOPIC/<appliance>/(status|power)`.
 - The classifier uses simple window features. Improve accuracy by labeling consistent segments across appliances.

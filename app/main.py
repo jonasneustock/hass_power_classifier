@@ -339,15 +339,18 @@ def _run_training():
         appliances = store.list_appliances()
         if not appliances:
             log_event("Training skipped: no appliances", level="warning")
+            training_state["last_finished"] = int(time.time())
             return
         counts = store.get_label_counts_by_appliance()
         for appliance in appliances:
             if counts.get(appliance["name"], 0) < config["min_labels"]:
                 log_event("Training skipped: not enough labels", level="warning")
+                training_state["last_finished"] = int(time.time())
                 return
         labeled_segments = store.get_labeled_segments()
         if not labeled_segments:
             log_event("Training skipped: no labeled segments", level="warning")
+            training_state["last_finished"] = int(time.time())
             return
         classifier.train(labeled_segments)
         power_stats = compute_power_stats_by_appliance()
@@ -366,6 +369,7 @@ def _run_training():
 
 
 def maybe_train_classifier():
+    log_event("Training trigger requested")
     thread = threading.Thread(target=_run_training, daemon=True)
     thread.start()
 
