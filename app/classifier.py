@@ -5,6 +5,13 @@ import joblib
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import (
+    accuracy_score,
+    mean_absolute_percentage_error,
+    mean_squared_error,
+    precision_recall_fscore_support,
+)
+from sklearn.model_selection import train_test_split
 
 
 class ClassifierService:
@@ -57,20 +64,43 @@ class ClassifierService:
         X = np.array(X)
         y = np.array(y)
 
+        metrics = {
+            "samples": len(y),
+            "classes": len(set(y)),
+            "accuracy": None,
+            "precision": None,
+            "recall": None,
+            "f1": None,
+        }
+
+        if len(y) >= 5 and len(set(y)) > 1:
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.2, random_state=42, stratify=y
+            )
+        else:
+            X_train, X_test, y_train, y_test = X, X, y, y
+
         model = RandomForestClassifier(
             n_estimators=200,
             random_state=42,
         )
-        model.fit(X, y)
+        model.fit(X_train, y_train)
+        if len(y_test) > 0:
+            y_pred = model.predict(X_test)
+            metrics["accuracy"] = float(accuracy_score(y_test, y_pred))
+            precision, recall, f1, _ = precision_recall_fscore_support(
+                y_test, y_pred, average="macro", zero_division=0
+            )
+            metrics["precision"] = float(precision)
+            metrics["recall"] = float(recall)
+            metrics["f1"] = float(f1)
+
         with self.lock:
             self.model = model
             self.classes = list(model.classes_)
-            self.last_metrics = {
-                "samples": len(y),
-                "classes": len(model.classes_),
-            }
+            self.last_metrics = metrics
             self._save()
-        return self.last_metrics
+        return metrics
 
     def predict(self, segment):
         with self.lock:
@@ -101,9 +131,12 @@ class RegressionService:
     def __init__(self):
         self.models = {}
         self.lock = threading.Lock()
+        self.last_metrics = None
 
     def train(self, labeled_segments, store):
         models = {}
+        all_y_true = []
+        all_y_pred = []
         by_appliance = {}
         for seg in labeled_segments:
             if seg["label_phase"] == "base":
@@ -121,12 +154,31 @@ class RegressionService:
                     y.append(sample["value"])
             if len(X) < 5:
                 continue
+            X_arr = np.array(X)
+            y_arr = np.array(y)
+            if len(y_arr) >= 10:
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X_arr, y_arr, test_size=0.2, random_state=42
+                )
+            else:
+                X_train, X_test, y_train, y_test = X_arr, X_arr, y_arr, y_arr
+
             model = LinearRegression()
-            model.fit(np.array(X), np.array(y))
+            model.fit(X_train, y_train)
+            if len(y_test) > 0:
+                preds = model.predict(X_test)
+                all_y_true.extend(list(y_test))
+                all_y_pred.extend(list(preds))
             models[appliance] = model
 
         with self.lock:
             self.models = models
+            if all_y_true and all_y_pred:
+                mse = mean_squared_error(all_y_true, all_y_pred)
+                mape = mean_absolute_percentage_error(all_y_true, all_y_pred)
+                self.last_metrics = {"mse": float(mse), "mape": float(mape)}
+            else:
+                self.last_metrics = None
 
     def predict(self, appliance, seconds_since_start):
         with self.lock:

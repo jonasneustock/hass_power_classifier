@@ -3,6 +3,7 @@ import os
 import sqlite3
 import threading
 import time
+import json
 from collections import deque
 from datetime import datetime
 from pathlib import Path
@@ -14,7 +15,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.classifier import ClassifierService
+from app.classifier import ClassifierService, RegressionService
 from app.data_store import DataStore
 from app.ha_client import HAClient
 from app.mqtt_client import MqttPublisher
@@ -326,6 +327,8 @@ training_state = {
     "last_finished": None,
 }
 training_lock = threading.Lock()
+metrics_file = data_dir / "model_metrics.json"
+metrics_history = []
 
 
 def log_event(message, level="info"):
@@ -333,6 +336,23 @@ def log_event(message, level="info"):
     entry = {"ts": ts, "message": message, "level": level}
     recent_logs.appendleft(entry)
     getattr(logging, level, logging.info)(message)
+
+
+def load_metrics_history():
+    if metrics_file.exists():
+        try:
+            return json.loads(metrics_file.read_text())
+        except Exception:
+            return []
+    return []
+
+
+def save_metrics_entry(entry):
+    history = load_metrics_history()
+    history.append(entry)
+    history = history[-100:]
+    metrics_file.write_text(json.dumps(history, indent=2))
+    return history
 
 
 def _run_training():
@@ -370,14 +390,22 @@ def _run_training():
             log_event("Training skipped: no labeled segments", level="warning")
             training_state["last_finished"] = int(time.time())
             return
-        classifier.train(labeled_segments, eligible_appliances=eligible)
+        clf_metrics = classifier.train(labeled_segments, eligible_appliances=eligible)
         regression_service.train(labeled_segments, store)
+        reg_metrics = regression_service.last_metrics
         power_stats = compute_power_stats_by_appliance()
         for name, stats in power_stats.items():
             store.update_appliance_power_stats(
                 name, stats["min_power"], stats["mean_power"], stats["max_power"]
             )
         training_state["last_finished"] = int(time.time())
+        metrics_entry = {
+            "ts": training_state["last_finished"],
+            "classifier": clf_metrics,
+            "regression": reg_metrics,
+        }
+        global metrics_history
+        metrics_history = save_metrics_entry(metrics_entry)
         log_event("Training finished")
     except Exception as exc:
         training_state["error"] = str(exc)
@@ -660,6 +688,7 @@ def models_page(request: Request):
     labeled_segments = store.get_labeled_segments()
     counts = store.get_label_counts_by_appliance()
     appliances = store.list_appliances()
+    current_metrics = metrics_history[-1] if metrics_history else None
     return templates.TemplateResponse(
         "models.html",
         {
@@ -670,6 +699,8 @@ def models_page(request: Request):
             "counts": counts,
             "appliances": appliances,
             "training_state": training_state,
+            "metrics_history": metrics_history,
+            "current_metrics": current_metrics,
         },
     )
 
