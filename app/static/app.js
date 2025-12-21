@@ -93,7 +93,7 @@
     var feeds = document.querySelectorAll("[data-log-feed]");
     if (!feeds.length) return;
     try {
-      const res = await fetch("/logs");
+      const res = await fetch("/logs/feed");
       if (!res.ok) return;
       const data = await res.json();
       const logs = data.logs || [];
