@@ -4,27 +4,31 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ config.app_title }}</title>
-    <link rel="stylesheet" href="/static/app.css" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
   </head>
-  <body>
-    <header class="site-header">
-      <div class="brand">
-        <span class="pulse"></span>
-        <div>
-          <h1>{{ config.app_title }}</h1>
-          <p>Powerline pattern labeling and appliance status</p>
+  <body class="min-h-screen bg-slate-50 text-slate-900">
+    <div class="mx-auto max-w-6xl px-4 pb-12">
+      <header class="flex flex-col gap-4 py-8 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex items-center gap-3">
+          <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-white">
+            ⚡
+          </div>
+          <div>
+            <h1 class="text-xl font-semibold">{{ config.app_title }}</h1>
+            <p class="text-sm text-slate-500">Powerline pattern labeling and appliance status</p>
+          </div>
         </div>
-      </div>
-      <nav>
-        <a href="/">Dashboard</a>
-        <a href="/segments">Segments</a>
-        <a href="/appliances">Appliances</a>
-        <a href="/models">Models</a>
-      </nav>
-    </header>
-    <main class="page">
-      {% block content %}{% endblock %}
-    </main>
+        <nav class="flex flex-wrap items-center gap-3 text-sm font-medium text-slate-600">
+          <a class="rounded-lg px-3 py-2 hover:bg-slate-100" href="/">Dashboard</a>
+          <a class="rounded-lg px-3 py-2 hover:bg-slate-100" href="/segments">Segments</a>
+          <a class="rounded-lg px-3 py-2 hover:bg-slate-100" href="/appliances">Appliances</a>
+          <a class="rounded-lg px-3 py-2 hover:bg-slate-100" href="/models">Models</a>
+        </nav>
+      </header>
+      <main class="space-y-6">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
     <script src="/static/app.js" defer></script>
   </body>
 </html>
