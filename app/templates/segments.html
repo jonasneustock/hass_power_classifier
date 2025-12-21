@@ -1,0 +1,67 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h2>Segments</h2>
+  </div>
+  <form class="filters" method="get" action="/segments">
+    <label>
+      Candidate only
+      <select name="candidate">
+        <option value="1" {% if candidate %}selected{% endif %}>Yes</option>
+        <option value="0" {% if not candidate %}selected{% endif %}>No</option>
+      </select>
+    </label>
+    <label>
+      Unlabeled only
+      <select name="unlabeled">
+        <option value="1" {% if unlabeled %}selected{% endif %}>Yes</option>
+        <option value="0" {% if not unlabeled %}selected{% endif %}>No</option>
+      </select>
+    </label>
+    <button type="submit" class="ghost">Apply</button>
+  </form>
+  {% if segments %}
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Window</th>
+        <th>Mean</th>
+        <th>Change</th>
+        <th>Label</th>
+        <th>Prediction</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for segment in segments %}
+      <tr>
+        <td>#{{ segment.id }}</td>
+        <td>{{ segment.start_ts }} - {{ segment.end_ts }}</td>
+        <td>{{ segment.mean }}</td>
+        <td>{{ segment.change_score }}</td>
+        <td>
+          {% if segment.label_appliance %}
+            {{ segment.label_appliance }} / {{ segment.label_phase }}
+          {% else %}
+            -
+          {% endif %}
+        </td>
+        <td>
+          {% if segment.predicted_appliance %}
+            {{ segment.predicted_appliance }} / {{ segment.predicted_phase }}
+          {% else %}
+            -
+          {% endif %}
+        </td>
+        <td><a href="/segments/{{ segment.id }}">Open</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No segments match your filters.</p>
+  {% endif %}
+</section>
+{% endblock %}

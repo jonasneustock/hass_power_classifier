@@ -1,0 +1,44 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h2>Register appliance</h2>
+  </div>
+  <form class="form" method="post" action="/appliances">
+    <label>
+      Appliance name
+      <input type="text" name="name" required />
+    </label>
+    <label>
+      Status entity id
+      <input type="text" name="status_entity_id" placeholder="sensor.toaster_status" required />
+    </label>
+    <label>
+      Power entity id
+      <input type="text" name="power_entity_id" placeholder="sensor.toaster_power" required />
+    </label>
+    <button type="submit">Create appliance</button>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <h2>Configured appliances</h2>
+  </div>
+  {% if appliances %}
+  <div class="grid">
+    {% for appliance in appliances %}
+    <div class="card">
+      <h3>{{ appliance.name }}</h3>
+      <p>Status entity: {{ appliance.status_entity_id }}</p>
+      <p>Power entity: {{ appliance.power_entity_id }}</p>
+      <p>Running watts: {{ appliance.running_watts }}</p>
+      <p>Last status: {{ appliance.last_status or 'unknown' }}</p>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty">No appliances configured yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

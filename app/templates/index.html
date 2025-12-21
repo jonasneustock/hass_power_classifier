@@ -1,0 +1,97 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h2>Live intake</h2>
+    <span class="tag">Poll every {{ config.poll_interval }}s</span>
+  </div>
+  {% if latest_sample %}
+  <div class="metrics">
+    <div>
+      <p class="label">Latest wattage</p>
+      <p class="value">{{ latest_sample.value }} W</p>
+    </div>
+    <div>
+      <p class="label">Last update</p>
+      <p class="value">{{ latest_sample.ts }}</p>
+    </div>
+  </div>
+  {% else %}
+  <p class="empty">No samples yet. Verify Home Assistant settings.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <h2>Training status</h2>
+  </div>
+  {% if training %}
+  <div class="metrics">
+    <div>
+      <p class="label">Samples</p>
+      <p class="value">{{ training.samples }}</p>
+    </div>
+    <div>
+      <p class="label">Classes</p>
+      <p class="value">{{ training.classes }}</p>
+    </div>
+  </div>
+  {% else %}
+  <p class="empty">Not trained yet. Label more segments.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <h2>Appliances</h2>
+  </div>
+  {% if appliances %}
+  <div class="grid">
+    {% for appliance in appliances %}
+    <div class="card">
+      <h3>{{ appliance.name }}</h3>
+      <p>Status entity: {{ appliance.status_entity_id }}</p>
+      <p>Power entity: {{ appliance.power_entity_id }}</p>
+      <p>Running watts: {{ appliance.running_watts }}</p>
+      <p>Last status: {{ appliance.last_status or 'unknown' }}</p>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty">No appliances configured yet.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <h2>Unlabeled segments</h2>
+    <a class="ghost" href="/segments">Review all</a>
+  </div>
+  {% if segments %}
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Window</th>
+        <th>Change</th>
+        <th>Candidate</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for segment in segments %}
+      <tr>
+        <td>#{{ segment.id }}</td>
+        <td>{{ segment.start_ts }} - {{ segment.end_ts }}</td>
+        <td>{{ segment.change_score }}</td>
+        <td>{{ 'yes' if segment.candidate else 'no' }}</td>
+        <td><a href="/segments/{{ segment.id }}">Label</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No new segments to label.</p>
+  {% endif %}
+</section>
+{% endblock %}

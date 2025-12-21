@@ -1,0 +1,95 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h2>Segment #{{ segment.id }}</h2>
+    <a class="ghost" href="/segments">Back to segments</a>
+  </div>
+  <div class="metrics">
+    <div>
+      <p class="label">Window</p>
+      <p class="value">{{ segment.start_ts }} - {{ segment.end_ts }}</p>
+    </div>
+    <div>
+      <p class="label">Mean</p>
+      <p class="value">{{ segment.mean }}</p>
+    </div>
+    <div>
+      <p class="label">Change</p>
+      <p class="value">{{ segment.change_score }}</p>
+    </div>
+  </div>
+  <div class="metrics">
+    <div>
+      <p class="label">Std dev</p>
+      <p class="value">{{ segment.std }}</p>
+    </div>
+    <div>
+      <p class="label">Slope</p>
+      <p class="value">{{ segment.slope }}</p>
+    </div>
+    <div>
+      <p class="label">Candidate</p>
+      <p class="value">{{ 'yes' if segment.candidate else 'no' }}</p>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <h2>Label this segment</h2>
+  </div>
+  <form class="form" method="post" action="/segments/{{ segment.id }}/label">
+    <label>
+      Appliance
+      <select name="appliance" required>
+        <option value="" disabled selected>Select appliance</option>
+        {% for appliance in appliances %}
+        <option value="{{ appliance.name }}">{{ appliance.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Phase
+      <select name="phase" required>
+        <option value="start">start</option>
+        <option value="running">running</option>
+        <option value="stop">stop</option>
+      </select>
+    </label>
+    <button type="submit">Save label</button>
+  </form>
+  {% if segment.label_appliance %}
+  <p class="hint">Current label: {{ segment.label_appliance }} / {{ segment.label_phase }}</p>
+  {% endif %}
+  {% if segment.predicted_appliance %}
+  <p class="hint">Prediction: {{ segment.predicted_appliance }} / {{ segment.predicted_phase }}</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <h2>Sample values</h2>
+  </div>
+  {% if samples %}
+  <table>
+    <thead>
+      <tr>
+        <th>Timestamp</th>
+        <th>Watts</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for sample in samples %}
+      <tr>
+        <td>{{ sample.ts }}</td>
+        <td>{{ sample.value }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No samples recorded for this window.</p>
+  {% endif %}
+</section>
+{% endblock %}

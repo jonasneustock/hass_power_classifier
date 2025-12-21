@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ha_power_classifier_data:/data
+volumes:
+  ha_power_classifier_data:

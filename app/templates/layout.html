@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ config.app_title }}</title>
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand">
+        <span class="pulse"></span>
+        <div>
+          <h1>{{ config.app_title }}</h1>
+          <p>Powerline pattern labeling and appliance status</p>
+        </div>
+      </div>
+      <nav>
+        <a href="/">Dashboard</a>
+        <a href="/segments">Segments</a>
+        <a href="/appliances">Appliances</a>
+      </nav>
+    </header>
+    <main class="page">
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>
