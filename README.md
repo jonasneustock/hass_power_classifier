@@ -56,12 +56,16 @@ pytest --cov=app --cov-report=term
 | --- | ---:| ---:| ---:|
 | app/__init__.py | 0 | 0 | 100% |
 | app/classifier.py | 124 | 25 | 80% |
+| app/config.py | 15 | 15 | 0% |
 | app/data_store.py | 177 | 35 | 80% |
-| app/ha_client.py | 32 | 32 | 0% |
-| app/main.py | 458 | 458 | 0% |
+| app/ha_client.py | 32 | 0 | 100% |
+| app/logging_utils.py | 9 | 9 | 0% |
+| app/main.py | 215 | 215 | 0% |
 | app/mqtt_client.py | 53 | 53 | 0% |
+| app/poller.py | 159 | 159 | 0% |
+| app/training.py | 98 | 98 | 0% |
 | app/utils.py | 59 | 1 | 98% |
-| **Total** | 903 | 604 | **33%** |
+| **Total** | 941 | 610 | **35%** |
 
 ## Notes
 - When MQTT is enabled, the app publishes MQTT discovery topics for each appliance and pushes power to `MQTT_BASE_TOPIC/<appliance>/power`.
