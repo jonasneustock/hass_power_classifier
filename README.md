@@ -44,7 +44,7 @@ All configuration is handled via environment variables in `.env`:
 - `MQTT_CLIENT_ID`: Client ID for the MQTT connection
 - `MQTT_DEVICE_ID`: Device identifier used for discovery unique IDs
 ## Model training
-- Classifier: RandomForest on diff-based segment features; uses an 80/20 train/test split when there are at least 5 samples and more than 1 class, otherwise trains on all data. Metrics recorded: accuracy, precision, recall, F1, sample and class counts.
+- Classifier: RandomForest on diff-based segment features; uses an 80/20 train/test split when there are at least 5 samples and more than 1 class, otherwise trains on all data. Classes with fewer than 5 labeled segments are skipped to avoid underfitting. Metrics recorded: accuracy, precision, recall, F1, sample and class counts.
 - Regression: per-appliance LinearRegression on diff samples vs. time since start; uses an 80/20 split when there are at least 10 samples, otherwise trains on all data. Metrics recorded: MSE and MAPE.
 - Base appliance: auto-created to hold `base` labels; base segments are excluded from training and power pushes.
 
