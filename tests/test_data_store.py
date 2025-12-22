@@ -192,3 +192,11 @@ def test_delete_unlabeled_before(tmp_path):
     assert old_labeled in remaining_ids
     assert recent in remaining_ids
     assert old_unlabeled not in remaining_ids
+
+
+def test_appliance_activity_sensors(tmp_path):
+    db = tmp_path / "store.sqlite"
+    store = DataStore(str(db))
+    store.add_appliance("x", "", "sensor.power", "binary_sensor.door, binary_sensor.window")
+    appliance = store.get_appliance("x")
+    assert "binary_sensor.door" in appliance["activity_sensors"]

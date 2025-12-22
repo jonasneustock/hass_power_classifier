@@ -208,6 +208,7 @@ def create_appliance(
     request: Request,
     name: str = Form(...),
     power_entity_id: str = Form(...),
+    activity_sensors: str = Form(""),
 ):
     errors = []
     if not config.get("mqtt_enabled"):
@@ -235,12 +236,13 @@ def create_appliance(
                 "form": {
                     "name": name,
                     "power_entity_id": power_entity_id,
+                    "activity_sensors": activity_sensors,
                 },
             },
             status_code=400,
         )
     try:
-        store.add_appliance(name, "", power_entity_id)
+        store.add_appliance(name, "", power_entity_id, activity_sensors)
         log_event(f"Appliance created: {name}")
     except sqlite3.IntegrityError:
         appliances = store.list_appliances()
@@ -261,6 +263,7 @@ def create_appliance(
                 "form": {
                     "name": name,
                     "power_entity_id": power_entity_id,
+                    "activity_sensors": activity_sensors,
                 },
             },
             status_code=400,

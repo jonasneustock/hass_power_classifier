@@ -16,6 +16,11 @@
       Power entity id
       <input class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" type="text" name="power_entity_id" placeholder="sensor.toaster_power" value="{{ form.power_entity_id if form }}" required />
     </label>
+    <label class="text-sm font-medium text-slate-700">
+      Activity sensors (comma-separated)
+      <input class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" type="text" name="activity_sensors" placeholder="binary_sensor.toaster_activity" value="{{ form.activity_sensors if form }}" />
+      <span class="mt-1 block text-xs text-slate-500">Reads Home Assistant binary sensors with states "on"/"off" to hint start/stop labels.</span>
+    </label>
     {% if config.mqtt_enabled %}
     <p class="text-sm text-slate-500">When MQTT is enabled, the entity IDs are used as discovery object IDs.</p>
     {% endif %}
@@ -33,6 +38,9 @@
     <div class="rounded-xl border border-slate-200 p-4">
       <h3 class="text-base font-semibold">{{ appliance.name }}</h3>
       <p class="text-sm text-slate-600">Power entity: {{ appliance.power_entity_id }}</p>
+      {% if appliance.activity_sensors %}
+      <p class="text-sm text-slate-600">Activity sensors: {{ appliance.activity_sensors }}</p>
+      {% endif %}
       {% if config.mqtt_enabled %}
       <p class="text-sm text-slate-600">MQTT power topic: <code class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ appliance.power_state_topic }}</code></p>
       <p class="text-xs text-slate-500">

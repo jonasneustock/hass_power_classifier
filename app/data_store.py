@@ -60,6 +60,7 @@ class DataStore:
                     name TEXT UNIQUE NOT NULL,
                     status_entity_id TEXT NOT NULL,
                     power_entity_id TEXT NOT NULL,
+                    activity_sensors TEXT DEFAULT '',
                     running_watts REAL DEFAULT 0,
                     last_status TEXT,
                     last_status_ts INTEGER,
@@ -86,12 +87,22 @@ class DataStore:
             to_add.append(("mean_power", "REAL"))
         if "max_power" not in columns:
             to_add.append(("max_power", "REAL"))
+        added = False
         for col, col_type in to_add:
             try:
                 self.conn.execute(f"ALTER TABLE appliances ADD COLUMN {col} {col_type}")
+                added = True
             except sqlite3.OperationalError:
                 pass
-        if to_add:
+        if "activity_sensors" not in columns:
+            try:
+                self.conn.execute(
+                    "ALTER TABLE appliances ADD COLUMN activity_sensors TEXT DEFAULT ''"
+                )
+                added = True
+            except sqlite3.OperationalError:
+                pass
+        if added:
             self.conn.commit()
 
     def _ensure_segment_columns(self):
@@ -285,16 +296,16 @@ class DataStore:
             rows = cursor.fetchall()
         return [dict(row) for row in rows]
 
-    def add_appliance(self, name, status_entity_id, power_entity_id):
+    def add_appliance(self, name, status_entity_id, power_entity_id, activity_sensors=""):
         created_ts = int(time.time())
         with self.lock:
             self.conn.execute(
                 """
                 INSERT INTO appliances (
-                    name, status_entity_id, power_entity_id, created_ts
-                ) VALUES (?, ?, ?, ?)
+                    name, status_entity_id, power_entity_id, activity_sensors, created_ts
+                ) VALUES (?, ?, ?, ?, ?)
                 """,
-                (name, status_entity_id, power_entity_id, created_ts),
+                (name, status_entity_id, power_entity_id, activity_sensors, created_ts),
             )
             self.conn.commit()
 

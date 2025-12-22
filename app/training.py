@@ -28,7 +28,7 @@ class TrainingManager:
     def ensure_base_appliance(self):
         base = self.store.get_appliance("base")
         if not base:
-            self.store.add_appliance("base", "", "")
+            self.store.add_appliance("base", "", "", "")
             log_event("Base appliance created for baseline labeling")
 
     def trigger_training(self):

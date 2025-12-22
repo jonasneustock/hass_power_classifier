@@ -30,6 +30,8 @@ class PowerPoller:
         self.pending_segment = None
         self.sample_count = 0
         self.last_cleanup_ts = 0
+        self.activity_prev = {}
+        self.activity_events = deque(maxlen=200)
         self.stop_event = threading.Event()
         self.thread = None
         self.active_sessions = {}
@@ -74,6 +76,7 @@ class PowerPoller:
                 self.prev_total = total_value
                 time.sleep(self.config["poll_interval"])
                 continue
+            self._poll_activity_sensors(ts)
 
             diff_value = total_value - self.prev_total
             self.prev_total = total_value
@@ -142,6 +145,18 @@ class PowerPoller:
                             log_event(
                                 f"Segment #{segment_id} created change={round(features['change_score']*100,1)}%"
                             )
+                            hint = self._activity_hint(segment_samples[-1][0])
+                            if hint:
+                                segment["predicted_appliance"] = hint["appliance"]
+                                segment["predicted_phase"] = hint["phase"]
+                                self.store.update_segment_prediction(
+                                    segment_id,
+                                    hint["appliance"],
+                                    hint["phase"],
+                                )
+                                log_event(
+                                    f"Activity hint applied to segment #{segment_id}: {hint['appliance']}/{hint['phase']}"
+                                )
                             prediction = self.classifier.predict(segment)
                             if prediction:
                                 appliance, phase = prediction
@@ -166,6 +181,44 @@ class PowerPoller:
 
             self._push_power_allocations(ts, total_value)
             time.sleep(self.config["poll_interval"])
+
+    def _poll_activity_sensors(self, ts):
+        appliances = self.store.list_appliances()
+        for appliance in appliances:
+            sensors_raw = appliance.get("activity_sensors") or ""
+            sensors = [s.strip() for s in sensors_raw.split(",") if s.strip()]
+            if not sensors:
+                continue
+            for sensor in sensors:
+                try:
+                    state = self.ha_client.get_state(sensor)
+                    value = str(state.get("state", "")).lower()
+                except Exception as exc:
+                    log_event(f"Failed to read activity sensor {sensor}: {exc}", level="warning")
+                    continue
+                prev = self.activity_prev.get(sensor)
+                if prev == value:
+                    continue
+                self.activity_prev[sensor] = value
+                if value == "on":
+                    phase = "start"
+                elif value == "off":
+                    phase = "stop"
+                else:
+                    continue
+                self.activity_events.append(
+                    {"ts": ts, "appliance": appliance["name"], "phase": phase, "sensor": sensor}
+                )
+                log_event(f"Activity sensor {sensor} -> {phase} for {appliance['name']}")
+
+    def _activity_hint(self, segment_ts):
+        if not self.activity_events:
+            return None
+        window = max(self.config.get("poll_interval", 5) * 3, 10)
+        for event in reversed(self.activity_events):
+            if segment_ts - event["ts"] <= window:
+                return event
+        return None
 
     def _record_phase(self, appliance, phase, ts):
         appliance_row = self.store.get_appliance(appliance)
@@ -248,4 +301,3 @@ class PowerPoller:
                 log_event(f"Power set for {appliance_name}: {round(watts,2)} W")
             except Exception as exc:
                 logging.warning("Failed to push power for %s: %s", appliance_name, exc)
-
