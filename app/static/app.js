@@ -115,6 +115,30 @@
     });
   }
 
+  async function refreshDashboard() {
+    var dashboard = document.querySelector("[data-dashboard]");
+    if (!dashboard) return;
+    try {
+      const res = await fetch("/", { headers: { "X-Partial": "1" } });
+      if (!res.ok) return;
+      const html = await res.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      const replacement = doc.querySelector("[data-dashboard]");
+      if (replacement) {
+        dashboard.innerHTML = replacement.innerHTML;
+        initCharts();
+      }
+    } catch (e) {
+      console.warn("Failed to refresh dashboard", e);
+    }
+  }
+
+  function initDashboardRefresh() {
+    refreshDashboard();
+    setInterval(refreshDashboard, 2000);
+  }
+
   async function refreshLogs() {
     var feeds = document.querySelectorAll("[data-log-feed]");
     if (!feeds.length) return;
@@ -155,8 +179,10 @@
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initCharts);
     document.addEventListener("DOMContentLoaded", initLogs);
+    document.addEventListener("DOMContentLoaded", initDashboardRefresh);
   } else {
     initCharts();
     initLogs();
+    initDashboardRefresh();
   }
 })();

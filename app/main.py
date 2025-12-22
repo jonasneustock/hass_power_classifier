@@ -568,6 +568,7 @@ def dashboard(request: Request):
             "training": training,
             "training_state": training_state,
         },
+        headers={"X-Partial": request.headers.get("X-Partial", "")},
     )
 
 
