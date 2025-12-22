@@ -19,6 +19,10 @@
         <option value="0" {% if not unlabeled %}selected{% endif %}>No</option>
       </select>
     </label>
+    <label class="flex flex-col">
+      <span class="text-slate-600">Min change (%)</span>
+      <input class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500" type="number" name="min_change" step="0.01" value="{{ min_change }}" placeholder="0.0">
+    </label>
     <button class="inline-flex h-9 items-center rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-slate-800" type="submit">Apply</button>
   </form>
   {% if segments %}

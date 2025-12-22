@@ -363,6 +363,13 @@ def save_metrics_entry(entry):
     return history
 
 
+def ensure_base_appliance():
+    base = store.get_appliance("base")
+    if not base:
+        store.add_appliance("base", "", "")
+        log_event("Base appliance created for baseline labeling")
+
+
 def _run_training():
     with training_lock:
         if training_state["running"]:
@@ -474,6 +481,7 @@ def check_ha_connection():
 
 @app.on_event("startup")
 def on_startup():
+    ensure_base_appliance()
     check_ha_connection()
     if mqtt_publisher:
         try:
@@ -620,12 +628,19 @@ def create_appliance(
 
 
 @app.get("/segments", response_class=HTMLResponse)
-def segments_page(request: Request, candidate: int = 1, unlabeled: int = 1):
+def segments_page(
+    request: Request,
+    candidate: int = 1,
+    unlabeled: int = 1,
+    min_change: float = 0.0,
+):
     segments = store.list_segments(
         limit=200,
         unlabeled_only=bool(unlabeled),
         candidate_only=bool(candidate),
     )
+    if min_change > 0:
+        segments = [s for s in segments if s["change_score"] >= min_change]
     return templates.TemplateResponse(
         "segments.html",
         {
@@ -633,6 +648,7 @@ def segments_page(request: Request, candidate: int = 1, unlabeled: int = 1):
             "segments": segments,
             "candidate": candidate,
             "unlabeled": unlabeled,
+            "min_change": min_change,
             "config": config,
         },
     )
