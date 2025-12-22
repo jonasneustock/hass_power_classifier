@@ -3,14 +3,20 @@
 <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
   <div class="flex flex-wrap items-center justify-between gap-3">
     <div>
-      <h2 class="text-lg font-semibold">Live intake</h2>
+      <h2 class="text-lg font-semibold">Live intake (diff)</h2>
       <p class="text-sm text-slate-500">Poll every {{ config.poll_interval }}s</p>
     </div>
     {% if latest_sample %}
     <div class="flex gap-6 text-sm">
       <div>
-        <p class="text-slate-500">Latest wattage</p>
-        <p class="text-lg font-semibold">{{ latest_sample.value }} W</p>
+        <p class="text-slate-500">Latest delta</p>
+        <p class="text-lg font-semibold">
+          {% if recent_samples and recent_samples[-1] %}
+            {{ recent_samples[-1].value }} W
+          {% else %}
+            n/a
+          {% endif %}
+        </p>
       </div>
       <div>
         <p class="text-slate-500">Last update</p>
@@ -52,7 +58,7 @@
 
 <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
   <div class="flex items-center justify-between">
-    <h2 class="text-lg font-semibold">Overall power change</h2>
+    <h2 class="text-lg font-semibold">Overall power change (diff)</h2>
     {% if recent_samples %}
     <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{{ recent_samples | length }} samples</span>
     {% endif %}

@@ -74,13 +74,14 @@ class PowerPoller:
         self.sensors = config["power_sensors"]
         min_window = config["segment_pre_samples"] + config["segment_post_samples"] + 1
         max_samples = max(min_window + 20, 50)
-        self.samples = deque(maxlen=max_samples)
+        self.samples_diff = deque(maxlen=max_samples)
         self.pending_segment = None
         self.sample_count = 0
         self.last_cleanup_ts = 0
         self.stop_event = threading.Event()
         self.thread = None
         self.active_sessions = {}
+        self.prev_total = None
 
     def start(self):
         if self.thread and self.thread.is_alive():
@@ -114,16 +115,23 @@ class PowerPoller:
                 continue
 
             self.store.add_sample(ts, total_value)
-            self.samples.append((ts, total_value))
+            if self.prev_total is None:
+                self.prev_total = total_value
+                time.sleep(self.config["poll_interval"])
+                continue
+
+            diff_value = total_value - self.prev_total
+            self.prev_total = total_value
+            self.samples_diff.append((ts, diff_value))
             self.sample_count += 1
 
-            if len(self.samples) >= 2 and self.pending_segment is None:
-                prev_value = self.samples[-2][1]
+            if len(self.samples_diff) >= 2 and self.pending_segment is None:
+                prev_value = self.samples_diff[-2][1]
                 denom = abs(prev_value) if abs(prev_value) > 1e-6 else 1.0
-                relative_change = abs(value - prev_value) / denom
+                relative_change = abs(diff_value - prev_value) / denom
                 if (
                     relative_change >= self.config["relative_change_threshold"]
-                    and len(self.samples) >= self.config["segment_pre_samples"] + 1
+                    and len(self.samples_diff) >= self.config["segment_pre_samples"] + 1
                 ):
                     self.pending_segment = {
                         "trigger_count": self.sample_count,
@@ -132,7 +140,7 @@ class PowerPoller:
             if self.pending_segment:
                 post_samples = self.config["segment_post_samples"]
                 if self.sample_count - self.pending_segment["trigger_count"] >= post_samples:
-                    samples_list = list(self.samples)
+                    samples_list = list(self.samples_diff)
                     segment_length = (
                         self.config["segment_pre_samples"]
                         + self.config["segment_post_samples"]
@@ -187,7 +195,7 @@ class PowerPoller:
                     log_event(f"Cleanup removed {deleted} stale segments")
                 self.last_cleanup_ts = ts
 
-            self._push_power_allocations(ts, value)
+            self._push_power_allocations(ts, total_value)
             time.sleep(self.config["poll_interval"])
 
     def _record_phase(self, appliance, phase, ts):
@@ -510,10 +518,24 @@ def dashboard(request: Request):
     latest_per_sensor = store.get_latest_sensor_samples()
     appliances = store.list_appliances()
     segments = store.list_segments(limit=10, unlabeled_only=True)
-    recent_samples = store.get_recent_samples(limit=200)
+    recent_samples_raw = store.get_recent_samples(limit=200)
+    recent_samples = []
+    for idx in range(1, len(recent_samples_raw)):
+        prev = recent_samples_raw[idx - 1]
+        curr = recent_samples_raw[idx]
+        recent_samples.append(
+            {"ts": curr["ts"], "value": curr["value"] - prev["value"]}
+        )
+
     recent_by_sensor = {}
     for sensor in config["power_sensors"]:
-        recent_by_sensor[sensor] = store.get_recent_sensor_samples(sensor, limit=200)
+        raw = store.get_recent_sensor_samples(sensor, limit=200)
+        diffs = []
+        for idx in range(1, len(raw)):
+            prev = raw[idx - 1]
+            curr = raw[idx]
+            diffs.append({"ts": curr["ts"], "value": curr["value"] - prev["value"]})
+        recent_by_sensor[sensor] = diffs
     detection_events = [
         {
             "ts": seg["start_ts"],
