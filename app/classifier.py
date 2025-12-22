@@ -13,6 +13,8 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split
 
+from app.utils import samples_to_diffs
+
 
 class ClassifierService:
     def __init__(self, model_path):
@@ -148,7 +150,8 @@ class RegressionService:
             y = []
             for seg in segments:
                 samples = store.get_samples_between(seg["start_ts"], seg["end_ts"])
-                for sample in samples:
+                diffs = samples_to_diffs(samples)
+                for sample in diffs:
                     t = sample["ts"] - seg["start_ts"]
                     X.append([t])
                     y.append(sample["value"])

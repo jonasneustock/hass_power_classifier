@@ -19,7 +19,13 @@ from app.classifier import ClassifierService, RegressionService
 from app.data_store import DataStore
 from app.ha_client import HAClient
 from app.mqtt_client import MqttPublisher
-from app.utils import build_mqtt_topics, compute_features, normalize_object_id, slugify
+from app.utils import (
+    build_mqtt_topics,
+    compute_features,
+    normalize_object_id,
+    samples_to_diffs,
+    slugify,
+)
 
 
 def load_config():
@@ -458,7 +464,8 @@ def compute_power_stats_by_appliance():
         values = []
         for seg in labeled:
             samples = store.get_samples_between(seg["start_ts"], seg["end_ts"])
-            values.extend([s["value"] for s in samples])
+            diffs = samples_to_diffs(samples)
+            values.extend([s["value"] for s in diffs])
         if values:
             stats[name] = {
                 "min_power": float(np.min(values)),

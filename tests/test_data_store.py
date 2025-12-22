@@ -84,3 +84,111 @@ def test_delete_segment(tmp_path):
     assert store.get_segment(seg_id) is not None
     store.delete_segment(seg_id)
     assert store.get_segment(seg_id) is None
+
+
+def test_list_segments_filters(tmp_path):
+    db = tmp_path / "store.sqlite"
+    store = DataStore(str(db))
+    now = int(time.time())
+    seg1 = store.add_segment(
+        {
+            "start_ts": now,
+            "end_ts": now + 1,
+            "mean": 1,
+            "std": 0,
+            "max": 1,
+            "min": 1,
+            "duration": 1,
+            "slope": 0,
+            "change_score": 0.5,
+            "candidate": True,
+            "flank": "positive",
+            "created_ts": now,
+        }
+    )
+    seg2 = store.add_segment(
+        {
+            "start_ts": now + 2,
+            "end_ts": now + 3,
+            "mean": 1,
+            "std": 0,
+            "max": 1,
+            "min": 1,
+            "duration": 1,
+            "slope": 0,
+            "change_score": 0.1,
+            "candidate": False,
+            "flank": "flat",
+            "label_appliance": "x",
+            "label_phase": "start",
+            "created_ts": now,
+        }
+    )
+    all_segments = store.list_segments(limit=10)
+    assert {s["id"] for s in all_segments} == {seg1, seg2}
+    candidates = store.list_segments(candidate_only=True)
+    assert {s["id"] for s in candidates} == {seg1}
+    unlabeled = store.list_segments(unlabeled_only=True)
+    assert {s["id"] for s in unlabeled} == {seg1}
+
+
+def test_delete_unlabeled_before(tmp_path):
+    db = tmp_path / "store.sqlite"
+    store = DataStore(str(db))
+    now = int(time.time())
+    old_unlabeled = store.add_segment(
+        {
+            "start_ts": now - 100,
+            "end_ts": now - 90,
+            "mean": 1,
+            "std": 0,
+            "max": 1,
+            "min": 1,
+            "duration": 10,
+            "slope": 0,
+            "change_score": 0.2,
+            "candidate": True,
+            "flank": "negative",
+            "created_ts": now - 100,
+        }
+    )
+    old_labeled = store.add_segment(
+        {
+            "start_ts": now - 100,
+            "end_ts": now - 90,
+            "mean": 1,
+            "std": 0,
+            "max": 1,
+            "min": 1,
+            "duration": 10,
+            "slope": 0,
+            "change_score": 0.2,
+            "candidate": True,
+            "label_appliance": "x",
+            "label_phase": "start",
+            "flank": "positive",
+            "created_ts": now - 100,
+        }
+    )
+    recent = store.add_segment(
+        {
+            "start_ts": now - 10,
+            "end_ts": now,
+            "mean": 1,
+            "std": 0,
+            "max": 1,
+            "min": 1,
+            "duration": 10,
+            "slope": 0,
+            "change_score": 0.2,
+            "candidate": True,
+            "flank": "positive",
+            "created_ts": now - 10,
+        }
+    )
+    deleted = store.delete_unlabeled_before(now - 50)
+    assert deleted == 1
+    remaining_ids = {s["id"] for s in store.list_segments(limit=10)}
+    assert old_labeled in remaining_ids
+    assert recent in remaining_ids
+    assert old_unlabeled not in remaining_ids

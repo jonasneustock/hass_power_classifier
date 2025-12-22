@@ -78,3 +78,15 @@ def build_mqtt_topics(appliance_row, config):
         "power_object_id": power_object_id,
         "slug": slug,
     }
+
+
+def samples_to_diffs(samples):
+    if not samples or len(samples) < 2:
+        return []
+    ordered = sorted(samples, key=lambda s: s["ts"])
+    diffs = []
+    for i in range(1, len(ordered)):
+        prev = ordered[i - 1]
+        curr = ordered[i]
+        diffs.append({"ts": curr["ts"], "value": curr["value"] - prev["value"]})
+    return diffs
