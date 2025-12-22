@@ -149,6 +149,9 @@ class RegressionService:
             X = []
             y = []
             for seg in segments:
+                flank = seg.get("flank")
+                if flank not in (None, "positive"):
+                    continue
                 samples = store.get_samples_between(seg["start_ts"], seg["end_ts"])
                 diffs = samples_to_diffs(samples)
                 for sample in diffs:
