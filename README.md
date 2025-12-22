@@ -4,11 +4,11 @@ Dockerized FastAPI app that connects to Home Assistant, records a power sensor, 
 
 ## What it does
 - Connects to a Home Assistant instance via REST API
-- Polls a power sensor on a fixed interval
+- Polls one or more power sensors on a fixed interval and works on power **diffs** (delta between samples)
 - Builds rolling segments and flags candidate changes
-- Web UI for labeling segments as `start` or `stop` per appliance
-- Trains a classifier once enough labels exist per appliance
-- Pushes start/stop status updates and per-appliance power estimates back to Home Assistant via REST or MQTT discovery
+- Web UI for labeling segments as `start`, `stop`, or `base` per appliance
+- Trains a classifier once enough labels exist per appliance and a regression model to predict per-appliance power over time after `start`
+- Pushes per-appliance power estimates back to Home Assistant via REST or MQTT discovery (no status entities)
 
 ## Quick start
 1. Copy `.env.example` to `.env` and fill in the Home Assistant details.
@@ -28,7 +28,8 @@ All configuration is handled via environment variables in `.env`:
 - `HA_POWER_SENSOR_ENTITY`: Source power sensor entity ID (single)
 - `HA_POWER_SENSORS`: Comma-separated list of power sensors (up to 10) for multi-phase setups; summed for segmentation
 - `POLL_INTERVAL_SECONDS`: Polling interval
-- `RELATIVE_CHANGE_THRESHOLD`: Relative change threshold (e.g. `0.2` for 20%)
+- `RELATIVE_CHANGE_THRESHOLD`: Relative change threshold (e.g. `0.2` for 20%); leave empty to disable
+- `ABSOLUTE_CHANGE_THRESHOLD`: Absolute delta trigger between consecutive diffs; used only when relative threshold is empty
 - `SEGMENT_PRE_SAMPLES`: Samples to include before a detected change
 - `SEGMENT_POST_SAMPLES`: Samples to include after a detected change
 - `MIN_LABELS_PER_APPLIANCE`: Minimum labels per appliance before training
@@ -42,23 +43,27 @@ All configuration is handled via environment variables in `.env`:
 - `MQTT_DISCOVERY_PREFIX`: Home Assistant discovery prefix (default `homeassistant`)
 - `MQTT_CLIENT_ID`: Client ID for the MQTT connection
 - `MQTT_DEVICE_ID`: Device identifier used for discovery unique IDs
+## Model training
+- Classifier: RandomForest on diff-based segment features; uses an 80/20 train/test split when there are at least 5 samples and more than 1 class, otherwise trains on all data. Metrics recorded: accuracy, precision, recall, F1, sample and class counts.
+- Regression: per-appliance LinearRegression on diff samples vs. time since start; uses an 80/20 split when there are at least 10 samples, otherwise trains on all data. Metrics recorded: MSE and MAPE.
+- Base appliance: auto-created to hold `base` labels; base segments are excluded from training and power pushes.
 
-## Test coverage
-
-Local coverage snapshot (via `pytest --cov=app --cov-report=term`):
-
+## Test coverage (local snapshot)
+```
+pytest --cov=app --cov-report=term
+```
 | Module | Stmts | Miss | Cover |
 | --- | ---:| ---:| ---:|
 | app/__init__.py | 0 | 0 | 100% |
-| app/classifier.py | 52 | 52 | 0% |
-| app/data_store.py | 161 | 40 | 75% |
+| app/classifier.py | 124 | 25 | 80% |
+| app/data_store.py | 177 | 35 | 80% |
 | app/ha_client.py | 32 | 32 | 0% |
-| app/main.py | 372 | 372 | 0% |
+| app/main.py | 458 | 458 | 0% |
 | app/mqtt_client.py | 53 | 53 | 0% |
-| app/utils.py | 50 | 1 | 98% |
-| **Total** | 720 | 550 | **24%** |
+| app/utils.py | 59 | 1 | 98% |
+| **Total** | 903 | 604 | **33%** |
 
 ## Notes
-- When MQTT is enabled, the app publishes MQTT discovery topics for each appliance and pushes status/power to `MQTT_BASE_TOPIC/<appliance>/(status|power)`.
-- The classifier uses simple window features. Improve accuracy by labeling consistent segments across appliances.
-- Per-appliance wattage is computed from each appliance's learned running average and split proportionally across active appliances.
+- When MQTT is enabled, the app publishes MQTT discovery topics for each appliance and pushes power to `MQTT_BASE_TOPIC/<appliance>/power`.
+- The classifier/regression use simple statistical features; improve accuracy by labeling consistent segments across appliances.
+- Power estimation is split per active appliance using learned regression/means; `base` labels capture ambient draw and don’t trigger pushes.

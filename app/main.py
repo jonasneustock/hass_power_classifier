@@ -36,14 +36,21 @@ def load_config():
         fallback = os.getenv("HA_POWER_SENSOR_ENTITY", "")
         if fallback:
             sensors = [fallback]
+    relative_env = os.getenv("RELATIVE_CHANGE_THRESHOLD", "0.2")
+    absolute_env = os.getenv("ABSOLUTE_CHANGE_THRESHOLD", "")
+    relative_change_threshold = (
+        float(relative_env) if relative_env != "" else None
+    )
+    absolute_change_threshold = (
+        float(absolute_env) if absolute_env != "" else None
+    )
     return {
         "ha_base_url": os.getenv("HA_BASE_URL", "http://homeassistant.local:8123"),
         "ha_token": os.getenv("HA_TOKEN", ""),
         "power_sensors": sensors[:10],
         "poll_interval": float(os.getenv("POLL_INTERVAL_SECONDS", "5")),
-        "relative_change_threshold": float(
-            os.getenv("RELATIVE_CHANGE_THRESHOLD", "0.2")
-        ),
+        "relative_change_threshold": relative_change_threshold,
+        "absolute_change_threshold": absolute_change_threshold,
         "segment_pre_samples": int(os.getenv("SEGMENT_PRE_SAMPLES", "15")),
         "segment_post_samples": int(os.getenv("SEGMENT_POST_SAMPLES", "15")),
         "min_labels": int(os.getenv("MIN_LABELS_PER_APPLIANCE", "5")),
@@ -133,12 +140,18 @@ class PowerPoller:
 
             if len(self.samples_diff) >= 2 and self.pending_segment is None:
                 prev_value = self.samples_diff[-2][1]
-                denom = abs(prev_value) if abs(prev_value) > 1e-6 else 1.0
-                relative_change = abs(diff_value - prev_value) / denom
-                if (
-                    relative_change >= self.config["relative_change_threshold"]
-                    and len(self.samples_diff) >= self.config["segment_pre_samples"] + 1
-                ):
+                trigger = False
+                relative_threshold = self.config.get("relative_change_threshold")
+                absolute_threshold = self.config.get("absolute_change_threshold")
+                if relative_threshold is not None:
+                    denom = abs(prev_value) if abs(prev_value) > 1e-6 else 1.0
+                    relative_change = abs(diff_value - prev_value) / denom
+                    trigger = relative_change >= relative_threshold
+                elif absolute_threshold is not None:
+                    absolute_change = abs(diff_value - prev_value)
+                    trigger = absolute_change >= absolute_threshold
+
+                if trigger and len(self.samples_diff) >= self.config["segment_pre_samples"] + 1:
                     self.pending_segment = {
                         "trigger_count": self.sample_count,
                     }
