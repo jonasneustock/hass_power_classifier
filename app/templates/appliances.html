@@ -36,19 +36,37 @@
   <div class="mt-4 grid gap-4 md:grid-cols-2">
     {% for appliance in appliances %}
     <div class="rounded-xl border border-slate-200 p-4">
-      <h3 class="text-base font-semibold">{{ appliance.name }}</h3>
-      <p class="text-sm text-slate-600">Power entity: {{ appliance.power_entity_id }}</p>
-      {% if appliance.activity_sensors %}
-      <p class="text-sm text-slate-600">Activity sensors: {{ appliance.activity_sensors }}</p>
-      {% endif %}
-      {% if config.mqtt_enabled %}
-      <p class="text-sm text-slate-600">MQTT power topic: <code class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ appliance.power_state_topic }}</code></p>
-      <p class="text-xs text-slate-500">
-        Discovery: <code class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ appliance.power_config_topic }}</code>
-      </p>
-      {% endif %}
-      <p class="text-sm text-slate-600">Learned power (min/mean/max): {{ appliance.min_power or 0 }} / {{ appliance.mean_power or appliance.running_watts or 0 }} / {{ appliance.max_power or 0 }} W</p>
-      <p class="text-sm text-slate-600">Last status: {{ appliance.last_status or 'unknown' }}</p>
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h3 class="text-base font-semibold">{{ appliance.name }}</h3>
+          <p class="text-sm text-slate-600">Power entity: {{ appliance.power_entity_id }}</p>
+          {% if appliance.activity_sensors %}
+          <p class="text-sm text-slate-600">Activity sensors: {{ appliance.activity_sensors }}</p>
+          {% endif %}
+          {% if config.mqtt_enabled %}
+          <p class="text-sm text-slate-600">MQTT power topic: <code class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ appliance.power_state_topic }}</code></p>
+          <p class="text-xs text-slate-500">
+            Discovery: <code class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ appliance.power_config_topic }}</code>
+          </p>
+          {% endif %}
+          <p class="text-sm text-slate-600">Learned power (min/mean/max): {{ appliance.min_power or 0 }} / {{ appliance.mean_power or appliance.running_watts or 0 }} / {{ appliance.max_power or 0 }} W</p>
+          <p class="text-sm text-slate-600">Last status: {{ appliance.last_status or 'unknown' }}</p>
+        </div>
+        <details class="w-48 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+          <summary class="cursor-pointer text-xs font-semibold text-slate-600">Edit</summary>
+          <form class="mt-2 space-y-2" method="post" action="/appliances/{{ appliance.name }}/update">
+            <label class="block text-xs">
+              Power entity
+              <input class="mt-1 w-full rounded border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500" type="text" name="power_entity_id" value="{{ appliance.power_entity_id }}" />
+            </label>
+            <label class="block text-xs">
+              Activity sensors
+              <input class="mt-1 w-full rounded border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500" type="text" name="activity_sensors" value="{{ appliance.activity_sensors }}" />
+            </label>
+            <button class="w-full rounded bg-slate-900 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-800" type="submit">Save</button>
+          </form>
+        </details>
+      </div>
     </div>
     {% endfor %}
   </div>

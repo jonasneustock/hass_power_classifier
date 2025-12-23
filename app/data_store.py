@@ -342,6 +342,30 @@ class DataStore:
             )
             self.conn.commit()
 
+    def update_appliance_config(
+        self, name, power_entity_id=None, activity_sensors=None, status_entity_id=None
+    ):
+        fields = []
+        params = []
+        if power_entity_id is not None:
+            fields.append("power_entity_id = ?")
+            params.append(power_entity_id)
+        if activity_sensors is not None:
+            fields.append("activity_sensors = ?")
+            params.append(activity_sensors)
+        if status_entity_id is not None:
+            fields.append("status_entity_id = ?")
+            params.append(status_entity_id)
+        if not fields:
+            return
+        params.append(name)
+        with self.lock:
+            self.conn.execute(
+                f"UPDATE appliances SET {', '.join(fields)} WHERE name = ?",
+                params,
+            )
+            self.conn.commit()
+
     def update_appliance_status(self, name, status, ts):
         with self.lock:
             self.conn.execute(

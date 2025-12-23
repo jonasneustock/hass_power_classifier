@@ -274,6 +274,26 @@ def create_appliance(
     return RedirectResponse(url="/appliances", status_code=303)
 
 
+@app.post("/appliances/{name}/update")
+def update_appliance(
+    name: str,
+    power_entity_id: str = Form(None),
+    activity_sensors: str = Form(None),
+):
+    appliance = store.get_appliance(name)
+    if not appliance:
+        return RedirectResponse(url="/appliances", status_code=303)
+    store.update_appliance_config(
+        name,
+        power_entity_id=power_entity_id or appliance["power_entity_id"],
+        activity_sensors=activity_sensors
+        if activity_sensors is not None
+        else appliance.get("activity_sensors", ""),
+    )
+    log_event(f"Appliance updated: {name}")
+    return RedirectResponse(url="/appliances", status_code=303)
+
+
 @app.get("/segments", response_class=HTMLResponse)
 def segments_page(
     request: Request,
