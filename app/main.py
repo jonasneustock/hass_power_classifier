@@ -328,6 +328,7 @@ def segment_detail(request: Request, segment_id: int):
         return RedirectResponse(url="/segments", status_code=303)
     samples = store.get_samples_between(segment["start_ts"], segment["end_ts"])
     appliances = store.list_appliances()
+    predictions = classifier.top_predictions(segment, top_n=3)
     return templates.TemplateResponse(
         "segment_detail.html",
         {
@@ -335,6 +336,7 @@ def segment_detail(request: Request, segment_id: int):
             "segment": segment,
             "samples": samples,
             "appliances": appliances,
+            "predictions": predictions,
             "config": config,
         },
     )

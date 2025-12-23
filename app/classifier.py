@@ -4,7 +4,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LinearRegression
+from sklearn.tree import DecisionTreeRegressor
 from sklearn.metrics import (
     accuracy_score,
     mean_absolute_percentage_error,
@@ -128,6 +128,35 @@ class ClassifierService:
             appliance, phase = prediction, "unknown"
         return appliance, phase
 
+    def top_predictions(self, segment, top_n=3):
+        with self.lock:
+            if self.model is None or not hasattr(self.model, "predict_proba"):
+                return []
+            features = np.array(
+                [
+                    [
+                        segment["mean"],
+                        segment["std"],
+                        segment["max"],
+                        segment["min"],
+                        segment["duration"],
+                        segment["slope"],
+                        segment["change_score"],
+                    ]
+                ]
+            )
+            probs = self.model.predict_proba(features)[0]
+            classes = self.model.classes_
+        scored = []
+        for cls, prob in zip(classes, probs):
+            if "|" in cls:
+                appliance, phase = cls.split("|", 1)
+            else:
+                appliance, phase = cls, "unknown"
+            scored.append({"appliance": appliance, "phase": phase, "prob": float(prob)})
+        scored.sort(key=lambda x: x["prob"], reverse=True)
+        return scored[:top_n]
+
 
 class RegressionService:
     def __init__(self):
@@ -169,7 +198,7 @@ class RegressionService:
             else:
                 X_train, X_test, y_train, y_test = X_arr, X_arr, y_arr, y_arr
 
-            model = LinearRegression()
+            model = DecisionTreeRegressor(random_state=42, max_depth=None, min_samples_leaf=5)
             model.fit(X_train, y_train)
             if len(y_test) > 0:
                 preds = model.predict(X_test)
