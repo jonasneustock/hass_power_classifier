@@ -242,6 +242,7 @@ class PowerPoller:
                     logging.warning("Failed to publish MQTT power 0 for %s", appliance)
                 else:
                     log_event(f"Power reset to 0 for {appliance}")
+                self.store.update_appliance_current_power(appliance, 0)
             else:
                 try:
                     self.ha_client.set_state(
@@ -255,6 +256,8 @@ class PowerPoller:
                     log_event(f"Power reset to 0 for {appliance}")
                 except Exception as exc:
                     logging.warning("Failed to reset power for %s: %s", appliance, exc)
+                else:
+                    self.store.update_appliance_current_power(appliance, 0)
 
     def _push_power_allocations(self, ts, total_power):
         appliances = {a["name"]: a for a in self.store.list_appliances()}
@@ -288,6 +291,7 @@ class PowerPoller:
                     log_event(
                         f"Power published for {appliance_name}: {round(watts,2)} W"
                     )
+                    self.store.update_appliance_current_power(appliance_name, round(watts, 2))
                 continue
             try:
                 self.ha_client.set_state(
@@ -301,3 +305,5 @@ class PowerPoller:
                 log_event(f"Power set for {appliance_name}: {round(watts,2)} W")
             except Exception as exc:
                 logging.warning("Failed to push power for %s: %s", appliance_name, exc)
+            else:
+                self.store.update_appliance_current_power(appliance_name, round(watts, 2))

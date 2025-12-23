@@ -138,6 +138,7 @@
       <h3 class="text-base font-semibold">{{ appliance.name }}</h3>
       <p class="text-sm text-slate-600">Status entity: {{ appliance.status_entity_id }}</p>
       <p class="text-sm text-slate-600">Power entity: {{ appliance.power_entity_id }}</p>
+      <p class="text-sm text-slate-600">Current published power: {{ appliance.current_power or 0 }} W</p>
       <p class="text-sm text-slate-600">Learned power (min/mean/max): {{ appliance.min_power or 0 }} / {{ appliance.mean_power or appliance.running_watts or 0 }} / {{ appliance.max_power or 0 }} W</p>
       <p class="text-sm text-slate-600">Last status: {{ appliance.last_status or 'unknown' }}</p>
     </div>

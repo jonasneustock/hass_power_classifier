@@ -43,14 +43,15 @@
           {% if appliance.activity_sensors %}
           <p class="text-sm text-slate-600">Activity sensors: {{ appliance.activity_sensors }}</p>
           {% endif %}
-          {% if config.mqtt_enabled %}
-          <p class="text-sm text-slate-600">MQTT power topic: <code class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ appliance.power_state_topic }}</code></p>
-          <p class="text-xs text-slate-500">
-            Discovery: <code class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ appliance.power_config_topic }}</code>
-          </p>
-          {% endif %}
-          <p class="text-sm text-slate-600">Learned power (min/mean/max): {{ appliance.min_power or 0 }} / {{ appliance.mean_power or appliance.running_watts or 0 }} / {{ appliance.max_power or 0 }} W</p>
-          <p class="text-sm text-slate-600">Last status: {{ appliance.last_status or 'unknown' }}</p>
+      {% if config.mqtt_enabled %}
+      <p class="text-sm text-slate-600">MQTT power topic: <code class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ appliance.power_state_topic }}</code></p>
+      <p class="text-xs text-slate-500">
+        Discovery: <code class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ appliance.power_config_topic }}</code>
+      </p>
+      {% endif %}
+      <p class="text-sm text-slate-600">Regression min/mean/max (W): {{ appliance.min_power or 0 }} / {{ appliance.mean_power or appliance.running_watts or 0 }} / {{ appliance.max_power or 0 }}</p>
+      <p class="text-sm text-slate-600">Current published power: {{ appliance.current_power or 0 }} W</p>
+      <p class="text-sm text-slate-600">Last status: {{ appliance.last_status or 'unknown' }}</p>
         </div>
         <details class="w-48 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
           <summary class="cursor-pointer text-xs font-semibold text-slate-600">Edit</summary>

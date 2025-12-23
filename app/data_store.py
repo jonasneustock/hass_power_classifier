@@ -61,6 +61,7 @@ class DataStore:
                     status_entity_id TEXT NOT NULL,
                     power_entity_id TEXT NOT NULL,
                     activity_sensors TEXT DEFAULT '',
+                    current_power REAL DEFAULT 0,
                     running_watts REAL DEFAULT 0,
                     last_status TEXT,
                     last_status_ts INTEGER,
@@ -87,6 +88,8 @@ class DataStore:
             to_add.append(("mean_power", "REAL"))
         if "max_power" not in columns:
             to_add.append(("max_power", "REAL"))
+        if "current_power" not in columns:
+            to_add.append(("current_power", "REAL DEFAULT 0"))
         added = False
         for col, col_type in to_add:
             try:
@@ -339,6 +342,14 @@ class DataStore:
                 WHERE name = ?
                 """,
                 (min_power, mean_power, max_power, name),
+            )
+            self.conn.commit()
+
+    def update_appliance_current_power(self, name, current_power):
+        with self.lock:
+            self.conn.execute(
+                "UPDATE appliances SET current_power = ? WHERE name = ?",
+                (current_power, name),
             )
             self.conn.commit()
 

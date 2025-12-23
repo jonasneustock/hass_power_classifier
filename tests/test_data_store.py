@@ -200,3 +200,12 @@ def test_appliance_activity_sensors(tmp_path):
     store.add_appliance("x", "", "sensor.power", "binary_sensor.door, binary_sensor.window")
     appliance = store.get_appliance("x")
     assert "binary_sensor.door" in appliance["activity_sensors"]
+
+
+def test_update_current_power(tmp_path):
+    db = tmp_path / "store.sqlite"
+    store = DataStore(str(db))
+    store.add_appliance("x", "", "sensor.power", "")
+    store.update_appliance_current_power("x", 123.4)
+    appliance = store.get_appliance("x")
+    assert appliance["current_power"] == 123.4
