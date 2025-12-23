@@ -214,6 +214,8 @@ def create_appliance(
     name: str = Form(...),
     power_entity_id: str = Form(...),
     activity_sensors: str = Form(""),
+    learning_appliance: int = Form(0),
+    learning_sensor_id: str = Form(""),
 ):
     errors = []
     if not config.get("mqtt_enabled"):
@@ -222,6 +224,12 @@ def create_appliance(
         except Exception as exc:
             logging.warning("Power entity check failed: %s", exc)
             errors.append("Power entity ID not available in Home Assistant.")
+    if learning_appliance:
+        try:
+            ha_client.get_state(learning_sensor_id)
+        except Exception as exc:
+            logging.warning("Learning sensor check failed: %s", exc)
+            errors.append("Learning sensor ID not available in Home Assistant.")
     if errors:
         appliances = store.list_appliances()
         if config.get("mqtt_enabled"):
@@ -242,12 +250,21 @@ def create_appliance(
                     "name": name,
                     "power_entity_id": power_entity_id,
                     "activity_sensors": activity_sensors,
+                    "learning_sensor_id": learning_sensor_id,
+                    "learning_appliance": learning_appliance,
                 },
             },
             status_code=400,
         )
     try:
-        store.add_appliance(name, "", power_entity_id, activity_sensors)
+        store.add_appliance(
+            name,
+            "",
+            power_entity_id,
+            activity_sensors,
+            1 if learning_appliance else 0,
+            learning_sensor_id,
+        )
         log_event(f"Appliance created: {name}")
     except sqlite3.IntegrityError:
         appliances = store.list_appliances()
@@ -269,6 +286,8 @@ def create_appliance(
                     "name": name,
                     "power_entity_id": power_entity_id,
                     "activity_sensors": activity_sensors,
+                    "learning_sensor_id": learning_sensor_id,
+                    "learning_appliance": learning_appliance,
                 },
             },
             status_code=400,
@@ -284,6 +303,8 @@ def update_appliance(
     name: str,
     power_entity_id: str = Form(None),
     activity_sensors: str = Form(None),
+    learning_appliance: int = Form(None),
+    learning_sensor_id: str = Form(None),
 ):
     appliance = store.get_appliance(name)
     if not appliance:
@@ -300,6 +321,12 @@ def update_appliance(
         activity_sensors=activity_sensors
         if activity_sensors is not None
         else appliance.get("activity_sensors", ""),
+        learning_appliance=learning_appliance
+        if learning_appliance is not None
+        else appliance.get("learning_appliance", 0),
+        learning_sensor_id=learning_sensor_id
+        if learning_sensor_id is not None
+        else appliance.get("learning_sensor_id", ""),
     )
     log_event(f"Appliance updated: {name}")
     return RedirectResponse(url="/appliances", status_code=303)
@@ -380,7 +407,7 @@ def segment_detail(request: Request, segment_id: int):
     if not segment:
         return RedirectResponse(url="/segments", status_code=303)
     samples = store.get_samples_between(segment["start_ts"], segment["end_ts"])
-    appliances = store.list_appliances()
+    appliances = [a for a in store.list_appliances() if not a.get("learning_appliance")]
     predictions = classifier.top_predictions(segment, top_n=3)
     return templates.TemplateResponse(
         "segment_detail.html",

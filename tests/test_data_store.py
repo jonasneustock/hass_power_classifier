@@ -236,3 +236,12 @@ def test_import_segments(tmp_path):
     assert inserted == 1
     labeled = store.get_labeled_segments()
     assert labeled[0]["label_appliance"] == "a"
+
+
+def test_learning_columns(tmp_path):
+    db = tmp_path / "store.sqlite"
+    store = DataStore(str(db))
+    store.add_appliance("learn", "", "sensor.out", "", 1, "sensor.learn")
+    appliance = store.get_appliance("learn")
+    assert appliance["learning_appliance"] == 1
+    assert appliance["learning_sensor_id"] == "sensor.learn"

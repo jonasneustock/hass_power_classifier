@@ -21,6 +21,15 @@
       <input class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" type="text" name="activity_sensors" placeholder="binary_sensor.toaster_activity" value="{{ form.activity_sensors if form }}" />
       <span class="mt-1 block text-xs text-slate-500">Reads Home Assistant binary sensors with states "on"/"off" to hint start/stop labels.</span>
     </label>
+    <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
+      <input type="checkbox" name="learning_appliance" value="1" {% if form.learning_appliance %}checked{% endif %} />
+      Learning appliance (auto-label from its own power sensor)
+    </label>
+    <label class="text-sm font-medium text-slate-700">
+      Learning sensor entity id
+      <input class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" type="text" name="learning_sensor_id" placeholder="sensor.toaster_power_input" value="{{ form.learning_sensor_id if form }}" />
+      <span class="mt-1 block text-xs text-slate-500">Used to auto-detect start/stop and auto-label segments.</span>
+    </label>
     {% if config.mqtt_enabled %}
     <p class="text-sm text-slate-500">When MQTT is enabled, the entity IDs are used as discovery object IDs.</p>
     {% endif %}
@@ -43,6 +52,9 @@
           {% if appliance.activity_sensors %}
           <p class="text-sm text-slate-600">Activity sensors: {{ appliance.activity_sensors }}</p>
           {% endif %}
+          {% if appliance.learning_appliance %}
+          <p class="text-xs font-semibold text-amber-700">Learning appliance ({{ appliance.learning_sensor_id }})</p>
+          {% endif %}
       {% if config.mqtt_enabled %}
       <p class="text-sm text-slate-600">MQTT power topic: <code class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">{{ appliance.power_state_topic }}</code></p>
       <p class="text-xs text-slate-500">
@@ -63,6 +75,11 @@
             <label class="block text-xs">
               Activity sensors
               <input class="mt-1 w-full rounded border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500" type="text" name="activity_sensors" value="{{ appliance.activity_sensors }}" />
+            </label>
+            <label class="block text-xs">
+              Learning sensor
+              <input class="mt-1 w-full rounded border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500" type="text" name="learning_sensor_id" value="{{ appliance.learning_sensor_id }}" />
+              <input type="hidden" name="learning_appliance" value="{{ appliance.learning_appliance }}" />
             </label>
             <button class="w-full rounded bg-slate-900 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-800" type="submit">Save</button>
           </form>

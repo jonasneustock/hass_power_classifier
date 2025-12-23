@@ -33,6 +33,8 @@ class PowerPoller:
         self.last_cleanup_ts = 0
         self.activity_prev = {}
         self.activity_events = deque(maxlen=200)
+        self.learning_prev = {}
+        self.learning_events = deque(maxlen=200)
         self.stop_event = threading.Event()
         self.thread = None
         self.active_sessions = {}
@@ -78,6 +80,7 @@ class PowerPoller:
                 time.sleep(self.config["poll_interval"])
                 continue
             self._poll_activity_sensors(ts)
+            self._poll_learning_appliances(ts)
 
             diff_value = total_value - self.prev_total
             self.prev_total = total_value
@@ -160,6 +163,16 @@ class PowerPoller:
                             log_event(
                                 f"Segment #{segment_id} created change={round(features['change_score']*100,1)}%"
                             )
+                            learn_hint = self._learning_hint(segment_samples[-1][0])
+                            if learn_hint:
+                                self.store.update_segment_label(
+                                    segment_id,
+                                    learn_hint["appliance"],
+                                    learn_hint["phase"],
+                                )
+                                log_event(
+                                    f"Learning appliance auto-label for segment #{segment_id}: {learn_hint['appliance']}/{learn_hint['phase']}"
+                                )
                             hint = self._activity_hint(segment_samples[-1][0])
                             if hint:
                                 segment["predicted_appliance"] = hint["appliance"]
@@ -231,6 +244,41 @@ class PowerPoller:
             return None
         window = max(self.config.get("poll_interval", 5) * 3, 10)
         for event in reversed(self.activity_events):
+            if segment_ts - event["ts"] <= window:
+                return event
+        return None
+
+    def _poll_learning_appliances(self, ts):
+        appliances = [
+            a for a in self.store.list_appliances() if a.get("learning_appliance")
+        ]
+        for appliance in appliances:
+            sensor = appliance.get("learning_sensor_id")
+            if not sensor:
+                continue
+            try:
+                state = self.ha_client.get_state(sensor)
+                value = float(state.get("state", 0))
+            except Exception as exc:
+                log_event(f"Failed to read learning sensor {sensor}: {exc}", level="warning")
+                continue
+            prev = self.learning_prev.get(sensor)
+            self.learning_prev[sensor] = value
+            if prev is None:
+                continue
+            diff = value - prev
+            if diff == 0:
+                continue
+            phase = "start" if diff > 0 else "stop"
+            self.learning_events.append(
+                {"ts": ts, "appliance": appliance["name"], "phase": phase, "sensor": sensor, "diff": diff}
+            )
+
+    def _learning_hint(self, segment_ts):
+        if not self.learning_events:
+            return None
+        window = max(self.config.get("poll_interval", 5) * 3, 10)
+        for event in reversed(self.learning_events):
             if segment_ts - event["ts"] <= window:
                 return event
         return None

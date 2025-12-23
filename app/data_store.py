@@ -61,6 +61,8 @@ class DataStore:
                     status_entity_id TEXT NOT NULL,
                     power_entity_id TEXT NOT NULL,
                     activity_sensors TEXT DEFAULT '',
+                    learning_appliance INTEGER DEFAULT 0,
+                    learning_sensor_id TEXT DEFAULT '',
                     current_power REAL DEFAULT 0,
                     running_watts REAL DEFAULT 0,
                     last_status TEXT,
@@ -90,6 +92,10 @@ class DataStore:
             to_add.append(("max_power", "REAL"))
         if "current_power" not in columns:
             to_add.append(("current_power", "REAL DEFAULT 0"))
+        if "learning_appliance" not in columns:
+            to_add.append(("learning_appliance", "INTEGER DEFAULT 0"))
+        if "learning_sensor_id" not in columns:
+            to_add.append(("learning_sensor_id", "TEXT DEFAULT ''"))
         added = False
         for col, col_type in to_add:
             try:
@@ -349,16 +355,33 @@ class DataStore:
             rows = cursor.fetchall()
         return [dict(row) for row in rows]
 
-    def add_appliance(self, name, status_entity_id, power_entity_id, activity_sensors=""):
+    def add_appliance(
+        self,
+        name,
+        status_entity_id,
+        power_entity_id,
+        activity_sensors="",
+        learning_appliance=0,
+        learning_sensor_id="",
+    ):
         created_ts = int(time.time())
         with self.lock:
             self.conn.execute(
                 """
                 INSERT INTO appliances (
-                    name, status_entity_id, power_entity_id, activity_sensors, created_ts
-                ) VALUES (?, ?, ?, ?, ?)
+                    name, status_entity_id, power_entity_id, activity_sensors,
+                    learning_appliance, learning_sensor_id, created_ts
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (name, status_entity_id, power_entity_id, activity_sensors, created_ts),
+                (
+                    name,
+                    status_entity_id,
+                    power_entity_id,
+                    activity_sensors,
+                    learning_appliance,
+                    learning_sensor_id,
+                    created_ts,
+                ),
             )
             self.conn.commit()
 
@@ -404,7 +427,13 @@ class DataStore:
             self.conn.commit()
 
     def update_appliance_config(
-        self, name, power_entity_id=None, activity_sensors=None, status_entity_id=None
+        self,
+        name,
+        power_entity_id=None,
+        activity_sensors=None,
+        status_entity_id=None,
+        learning_appliance=None,
+        learning_sensor_id=None,
     ):
         fields = []
         params = []
@@ -417,6 +446,12 @@ class DataStore:
         if status_entity_id is not None:
             fields.append("status_entity_id = ?")
             params.append(status_entity_id)
+        if learning_appliance is not None:
+            fields.append("learning_appliance = ?")
+            params.append(1 if learning_appliance else 0)
+        if learning_sensor_id is not None:
+            fields.append("learning_sensor_id = ?")
+            params.append(learning_sensor_id)
         if not fields:
             return
         params.append(name)
