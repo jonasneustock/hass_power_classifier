@@ -2,6 +2,7 @@ import logging
 import threading
 import time
 from collections import deque
+from statistics import pstdev
 
 from app.logging_utils import log_event
 from app.utils import build_mqtt_topics, compute_features
@@ -88,6 +89,20 @@ class PowerPoller:
                 trigger = False
                 relative_threshold = self.config.get("relative_change_threshold")
                 absolute_threshold = self.config.get("absolute_change_threshold")
+                if (
+                    self.config.get("adaptive_threshold_enabled")
+                    and relative_threshold is not None
+                ):
+                    window = min(
+                        len(self.samples_diff), self.config.get("adaptive_window", 50)
+                    )
+                    if window >= 5:
+                        recent_vals = [v for _, v in list(self.samples_diff)[-window:]]
+                        noise = pstdev(recent_vals) if len(recent_vals) > 1 else 0
+                        adapt = noise * self.config.get("adaptive_multiplier", 3)
+                        min_rel = self.config.get("adaptive_min_relative", 0.05)
+                        max_rel = self.config.get("adaptive_max_relative", 1.0)
+                        relative_threshold = max(min_rel, min(max_rel, adapt))
                 if relative_threshold is not None:
                     denom = abs(prev_value) if abs(prev_value) > 1e-6 else 1.0
                     relative_change = abs(diff_value - prev_value) / denom

@@ -61,6 +61,18 @@
   {% else %}
   <p class="mt-3 text-sm text-slate-500">Not trained yet. Add labels then retrain.</p>
   {% endif %}
+  {% if metrics_history %}
+  <div class="mt-4 grid gap-4 md:grid-cols-2">
+    <div>
+      <p class="text-sm font-semibold text-slate-700">Classifier accuracy history</p>
+      <canvas class="mt-2 h-28 w-full rounded border border-slate-200 bg-slate-50" width="360" height="120" data-metric-chart='{{ metrics_history | map(attribute="classifier") | list | tojson }}' data-metric-field="accuracy"></canvas>
+    </div>
+    <div>
+      <p class="text-sm font-semibold text-slate-700">Regression MSE history</p>
+      <canvas class="mt-2 h-28 w-full rounded border border-slate-200 bg-slate-50" width="360" height="120" data-metric-chart='{{ metrics_history | map(attribute="regression") | list | tojson }}' data-metric-field="mse"></canvas>
+    </div>
+  </div>
+  {% endif %}
   <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
     <p class="text-slate-500">
       Status:

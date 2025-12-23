@@ -24,6 +24,8 @@ class TrainingManager:
         }
         self.training_lock = threading.Lock()
         self.metrics_history = self._load_metrics_history()
+        self._scheduler_thread = None
+        self._stop_scheduler = threading.Event()
 
     def ensure_base_appliance(self):
         base = self.store.get_appliance("base")
@@ -51,6 +53,27 @@ class TrainingManager:
         self.metrics_file.write_text(json.dumps(history, indent=2))
         self.metrics_history = history
         return history
+
+    def start_scheduler(self):
+        interval = self.config.get("retrain_interval", 0)
+        if not interval or interval <= 0:
+            return
+        if self._scheduler_thread and self._scheduler_thread.is_alive():
+            return
+
+        def _loop():
+            while not self._stop_scheduler.is_set():
+                time.sleep(interval)
+                if self._stop_scheduler.is_set():
+                    break
+                self.trigger_training()
+
+        self._scheduler_thread = threading.Thread(target=_loop, daemon=True)
+        self._scheduler_thread.start()
+
+    def stop_scheduler(self):
+        if self._scheduler_thread:
+            self._stop_scheduler.set()
 
     def _compute_power_stats_by_appliance(self):
         appliances = self.store.list_appliances()
@@ -116,9 +139,16 @@ class TrainingManager:
                 self.training_state["last_finished"] = int(time.time())
                 return
             clf_metrics = self.classifier.train(
-                labeled_segments, eligible_appliances=eligible
+                labeled_segments,
+                eligible_appliances=eligible,
+                tune=self.config.get("hyperparam_tuning", False),
             )
-            self.regression_service.train(labeled_segments, self.store)
+            self.regression_service.train(
+                labeled_segments,
+                self.store,
+                tune=self.config.get("hyperparam_tuning", False),
+                sensors=self.config.get("power_sensors", []),
+            )
             reg_metrics = self.regression_service.last_metrics
             power_stats = self._compute_power_stats_by_appliance()
             for name, stats in power_stats.items():

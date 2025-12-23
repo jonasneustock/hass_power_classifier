@@ -66,6 +66,16 @@
             </label>
             <button class="w-full rounded bg-slate-900 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-800" type="submit">Save</button>
           </form>
+          <form class="mt-2 space-y-2" method="post" action="/appliances/{{ appliance.name }}/rename">
+            <label class="block text-xs">
+              Rename
+              <input class="mt-1 w-full rounded border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500" type="text" name="new_name" value="{{ appliance.name }}" required />
+            </label>
+            <button class="w-full rounded bg-amber-600 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-500" type="submit">Rename</button>
+          </form>
+          <form class="mt-2" method="post" action="/appliances/{{ appliance.name }}/delete" onsubmit="return confirm('Delete appliance {{ appliance.name }}?');">
+            <button class="w-full rounded border border-red-300 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50" type="submit">Delete</button>
+          </form>
         </details>
       </div>
     </div>

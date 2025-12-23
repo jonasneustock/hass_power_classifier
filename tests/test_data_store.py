@@ -209,3 +209,30 @@ def test_update_current_power(tmp_path):
     store.update_appliance_current_power("x", 123.4)
     appliance = store.get_appliance("x")
     assert appliance["current_power"] == 123.4
+
+
+def test_import_segments(tmp_path):
+    db = tmp_path / "store.sqlite"
+    store = DataStore(str(db))
+    now = int(time.time())
+    inserted = store.import_segments(
+        [
+            {
+                "start_ts": now,
+                "end_ts": now + 1,
+                "mean": 1,
+                "std": 0,
+                "max": 1,
+                "min": 1,
+                "duration": 1,
+                "slope": 0,
+                "change_score": 0.2,
+                "label_appliance": "a",
+                "label_phase": "start",
+                "flank": "positive",
+            }
+        ]
+    )
+    assert inserted == 1
+    labeled = store.get_labeled_segments()
+    assert labeled[0]["label_appliance"] == "a"

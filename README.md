@@ -30,6 +30,10 @@ All configuration is handled via environment variables in `.env`:
 - `POLL_INTERVAL_SECONDS`: Polling interval
 - `RELATIVE_CHANGE_THRESHOLD`: Relative change threshold (e.g. `0.2` for 20%); leave empty to disable
 - `ABSOLUTE_CHANGE_THRESHOLD`: Absolute delta trigger between consecutive diffs; used only when relative threshold is empty
+- `ADAPTIVE_THRESHOLD_ENABLED`: Enable adaptive relative thresholding based on recent noise
+- `ADAPTIVE_THRESHOLD_WINDOW`: Rolling window size for adaptive threshold
+- `ADAPTIVE_THRESHOLD_MULTIPLIER`: Multiplier applied to noise std to derive threshold
+- `ADAPTIVE_MIN_RELATIVE` / `ADAPTIVE_MAX_RELATIVE`: Bounds for adaptive relative threshold
 - `SEGMENT_PRE_SAMPLES`: Samples to include before a detected change
 - `SEGMENT_POST_SAMPLES`: Samples to include after a detected change
 - `MIN_LABELS_PER_APPLIANCE`: Minimum labels per appliance before training
@@ -43,6 +47,8 @@ All configuration is handled via environment variables in `.env`:
 - `MQTT_DISCOVERY_PREFIX`: Home Assistant discovery prefix (default `homeassistant`)
 - `MQTT_CLIENT_ID`: Client ID for the MQTT connection
 - `MQTT_DEVICE_ID`: Device identifier used for discovery unique IDs
+- `RETRAIN_INTERVAL_SECONDS`: Auto-retrain cadence (0 to disable)
+- `HYPERPARAM_TUNING`: Enable hyperparameter search for classifier/regression
 ## Model training
 - Classifier: RandomForest on diff-based segment features; uses an 80/20 train/test split when there are at least 5 samples and more than 1 class, otherwise trains on all data. Classes with fewer than 5 labeled segments are skipped to avoid underfitting. Metrics recorded: accuracy, precision, recall, F1, sample and class counts.
 - Regression: per-appliance LinearRegression on diff samples vs. time since start; uses an 80/20 split when there are at least 10 samples, otherwise trains on all data. Metrics recorded: MSE and MAPE.

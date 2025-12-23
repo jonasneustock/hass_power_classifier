@@ -40,7 +40,7 @@ class ClassifierService:
         }
         joblib.dump(data, self.model_path)
 
-    def train(self, segments, eligible_appliances=None):
+    def train(self, segments, eligible_appliances=None, tune=False):
         if not segments:
             return None
         X = []
@@ -82,20 +82,46 @@ class ClassifierService:
         else:
             X_train, X_test, y_train, y_test = X, X, y, y
 
-        model = RandomForestClassifier(
-            n_estimators=200,
-            random_state=42,
-        )
-        model.fit(X_train, y_train)
-        if len(y_test) > 0:
-            y_pred = model.predict(X_test)
-            metrics["accuracy"] = float(accuracy_score(y_test, y_pred))
-            precision, recall, f1, _ = precision_recall_fscore_support(
-                y_test, y_pred, average="macro", zero_division=0
-            )
-            metrics["precision"] = float(precision)
-            metrics["recall"] = float(recall)
-            metrics["f1"] = float(f1)
+        def train_eval(params):
+            model_local = RandomForestClassifier(random_state=42, **params)
+            model_local.fit(X_train, y_train)
+            local_metrics = metrics.copy()
+            local_metrics = {k: v for k, v in local_metrics.items()}
+            if len(y_test) > 0:
+                y_pred = model_local.predict(X_test)
+                local_metrics["accuracy"] = float(accuracy_score(y_test, y_pred))
+                precision, recall, f1, _ = precision_recall_fscore_support(
+                    y_test, y_pred, average="macro", zero_division=0
+                )
+                local_metrics["precision"] = float(precision)
+                local_metrics["recall"] = float(recall)
+                local_metrics["f1"] = float(f1)
+            return model_local, local_metrics
+
+        candidate_params = [
+            {"n_estimators": 200, "max_depth": None, "min_samples_leaf": 1},
+            {"n_estimators": 300, "max_depth": None, "min_samples_leaf": 2},
+            {"n_estimators": 200, "max_depth": 12, "min_samples_leaf": 1},
+            {"n_estimators": 150, "max_depth": 8, "min_samples_leaf": 2},
+        ]
+        if not tune:
+            candidate_params = [candidate_params[0]]
+
+        best_model = None
+        best_metrics = None
+        best_acc = -1
+        for params in candidate_params:
+            model_candidate, met = train_eval(params)
+            acc = met.get("accuracy") if met else None
+            if acc is None:
+                acc = 0.0
+            if acc >= best_acc:
+                best_acc = acc
+                best_model = model_candidate
+                best_metrics = met
+
+        model = best_model
+        metrics = best_metrics or metrics
 
         with self.lock:
             self.model = model
@@ -164,7 +190,7 @@ class RegressionService:
         self.lock = threading.Lock()
         self.last_metrics = None
 
-    def train(self, labeled_segments, store):
+    def train(self, labeled_segments, store, tune=False, sensors=None):
         models = {}
         all_y_true = []
         all_y_pred = []
@@ -181,12 +207,23 @@ class RegressionService:
                 flank = seg.get("flank")
                 if flank not in (None, "positive"):
                     continue
-                samples = store.get_samples_between(seg["start_ts"], seg["end_ts"])
-                diffs = samples_to_diffs(samples)
-                for sample in diffs:
-                    t = sample["ts"] - seg["start_ts"]
-                    X.append([t])
-                    y.append(sample["value"])
+                if sensors:
+                    for sensor in sensors:
+                        samples = store.get_sensor_samples_between(
+                            seg["start_ts"], seg["end_ts"], sensor=sensor
+                        )
+                        diffs = samples_to_diffs(samples)
+                        for sample in diffs:
+                            t = sample["ts"] - seg["start_ts"]
+                            X.append([t])
+                            y.append(sample["value"])
+                else:
+                    samples = store.get_samples_between(seg["start_ts"], seg["end_ts"])
+                    diffs = samples_to_diffs(samples)
+                    for sample in diffs:
+                        t = sample["ts"] - seg["start_ts"]
+                        X.append([t])
+                        y.append(sample["value"])
             if len(X) < 5:
                 continue
             X_arr = np.array(X)
@@ -198,13 +235,33 @@ class RegressionService:
             else:
                 X_train, X_test, y_train, y_test = X_arr, X_arr, y_arr, y_arr
 
-            model = DecisionTreeRegressor(random_state=42, max_depth=None, min_samples_leaf=5)
-            model.fit(X_train, y_train)
-            if len(y_test) > 0:
-                preds = model.predict(X_test)
+            candidates = [
+                {"max_depth": None, "min_samples_leaf": 5},
+                {"max_depth": 8, "min_samples_leaf": 3},
+                {"max_depth": 12, "min_samples_leaf": 5},
+            ]
+            if not tune:
+                candidates = [candidates[0]]
+
+            best_model = None
+            best_mse = float("inf")
+            for params in candidates:
+                model_local = DecisionTreeRegressor(random_state=42, **params)
+                model_local.fit(X_train, y_train)
+                if len(y_test) > 0:
+                    preds = model_local.predict(X_test)
+                    mse_local = mean_squared_error(y_test, preds)
+                else:
+                    mse_local = 0
+                if mse_local <= best_mse:
+                    best_mse = mse_local
+                    best_model = model_local
+            if len(y_test) > 0 and best_model is not None:
+                preds = best_model.predict(X_test)
                 all_y_true.extend(list(y_test))
                 all_y_pred.extend(list(preds))
-            models[appliance] = model
+            if best_model is not None:
+                models[appliance] = best_model
 
         with self.lock:
             self.models = models

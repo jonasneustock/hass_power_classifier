@@ -182,6 +182,18 @@ class DataStore:
             rows = cursor.fetchall()
         return [dict(row) for row in rows][::-1]
 
+    def get_sensor_samples_between(self, start_ts, end_ts, sensor=None):
+        query = "SELECT ts, sensor, value FROM sensor_samples WHERE ts BETWEEN ? AND ?"
+        params = [start_ts, end_ts]
+        if sensor:
+            query += " AND sensor = ?"
+            params.append(sensor)
+        query += " ORDER BY ts ASC"
+        with self.lock:
+            cursor = self.conn.execute(query, params)
+            rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
     def get_samples_between(self, start_ts, end_ts):
         with self.lock:
             cursor = self.conn.execute(
@@ -228,6 +240,31 @@ class DataStore:
             self.conn.commit()
             return cursor.lastrowid
 
+    def import_segments(self, segments):
+        inserted = 0
+        for seg in segments:
+            base = {
+                "start_ts": seg["start_ts"],
+                "end_ts": seg["end_ts"],
+                "mean": seg.get("mean", 0),
+                "std": seg.get("std", 0),
+                "max": seg.get("max", 0),
+                "min": seg.get("min", 0),
+                "duration": seg.get("duration", 0),
+                "slope": seg.get("slope", 0),
+                "change_score": seg.get("change_score", 0),
+                "candidate": seg.get("candidate", False),
+                "label_appliance": seg.get("label_appliance"),
+                "label_phase": seg.get("label_phase"),
+                "predicted_appliance": seg.get("predicted_appliance"),
+                "predicted_phase": seg.get("predicted_phase"),
+                "flank": seg.get("flank"),
+                "created_ts": seg.get("created_ts", int(time.time())),
+            }
+            self.add_segment(base)
+            inserted += 1
+        return inserted
+
     def list_segments(self, limit=200, unlabeled_only=False, candidate_only=False):
         query = "SELECT * FROM segments"
         conditions = []
@@ -244,6 +281,19 @@ class DataStore:
             cursor = self.conn.execute(query, params)
             rows = cursor.fetchall()
         return [dict(row) for row in rows]
+
+    def get_latest_unlabeled_segment(self):
+        with self.lock:
+            cursor = self.conn.execute(
+                """
+                SELECT * FROM segments
+                WHERE label_appliance IS NULL
+                ORDER BY start_ts DESC
+                LIMIT 1
+                """
+            )
+            row = cursor.fetchone()
+        return dict(row) if row else None
 
     def delete_unlabeled_before(self, cutoff_ts):
         with self.lock:
@@ -374,6 +424,35 @@ class DataStore:
             self.conn.execute(
                 f"UPDATE appliances SET {', '.join(fields)} WHERE name = ?",
                 params,
+            )
+            self.conn.commit()
+
+    def rename_appliance(self, old_name, new_name):
+        with self.lock:
+            self.conn.execute(
+                "UPDATE appliances SET name = ? WHERE name = ?",
+                (new_name, old_name),
+            )
+            self.conn.execute(
+                "UPDATE segments SET label_appliance = ? WHERE label_appliance = ?",
+                (new_name, old_name),
+            )
+            self.conn.execute(
+                "UPDATE segments SET predicted_appliance = ? WHERE predicted_appliance = ?",
+                (new_name, old_name),
+            )
+            self.conn.commit()
+
+    def delete_appliance(self, name):
+        with self.lock:
+            self.conn.execute("DELETE FROM appliances WHERE name = ?", (name,))
+            self.conn.execute(
+                """
+                UPDATE segments
+                SET label_appliance = NULL, label_phase = NULL
+                WHERE label_appliance = ?
+                """,
+                (name,),
             )
             self.conn.commit()
 

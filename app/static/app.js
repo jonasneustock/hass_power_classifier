@@ -1,5 +1,5 @@
 (function () {
-  function renderLineChart(canvas, points, events) {
+  function renderLineChart(canvas, points, events, activities) {
     var ctx = canvas.getContext("2d");
     var width = canvas.width;
     var height = canvas.height;
@@ -69,10 +69,77 @@
       });
     }
 
+    if (activities && activities.length) {
+      activities.forEach(function (ev) {
+        var ex = padding + ((Number(ev.ts) - minTs) / tsSpan) * (width - padding * 2);
+        ctx.strokeStyle = ev.phase === "start" ? "#2563eb" : "#1e40af";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(ex, padding);
+        ctx.lineTo(ex, height - padding);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+    }
+
     ctx.fillStyle = "#6f665c";
     ctx.font = "12px 'Space Grotesk', sans-serif";
     ctx.fillText(minVal.toFixed(1) + " W", padding, height - 8);
     ctx.fillText(maxVal.toFixed(1) + " W", padding, padding - 6);
+  }
+
+  function renderMetricChart(canvas, series) {
+    var ctx = canvas.getContext("2d");
+    var width = canvas.width;
+    var height = canvas.height;
+    var padding = 16;
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillRect(0, 0, width, height);
+
+    if (!series || !series.length) {
+      ctx.fillStyle = "#64748b";
+      ctx.font = "12px 'Space Grotesk', sans-serif";
+      ctx.fillText("No data", padding, height / 2);
+      return;
+    }
+
+    var values = series.map(function (p) { return Number(p.value); });
+    var times = series.map(function (p) { return Number(p.ts || 0); });
+    var minVal = Math.min.apply(null, values);
+    var maxVal = Math.max.apply(null, values);
+    var span = maxVal - minVal;
+    if (span === 0) span = 1;
+    var minTs = Math.min.apply(null, times);
+    var maxTs = Math.max.apply(null, times);
+    var tsSpan = maxTs - minTs || 1;
+
+    ctx.strokeStyle = "#cbd5e1";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padding, padding);
+    ctx.lineTo(padding, height - padding);
+    ctx.lineTo(width - padding, height - padding);
+    ctx.stroke();
+
+    ctx.strokeStyle = "#0ea5e9";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    series.forEach(function (point, index) {
+      var x = padding + ((Number(point.ts || index) - minTs) / tsSpan) * (width - padding * 2);
+      var normalized = (Number(point.value) - minVal) / span;
+      var y = height - padding - normalized * (height - padding * 2);
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    ctx.fillStyle = "#475569";
+    ctx.font = "11px 'Space Grotesk', sans-serif";
+    ctx.fillText(minVal.toFixed(3), padding, height - 4);
+    ctx.fillText(maxVal.toFixed(3), padding, padding - 4);
   }
 
   function initCharts() {
@@ -84,7 +151,11 @@
         if (canvas.dataset.events) {
           events = JSON.parse(canvas.dataset.events);
         }
-        renderLineChart(canvas, points, events);
+        var activities = [];
+        if (canvas.dataset.activities) {
+          activities = JSON.parse(canvas.dataset.activities);
+        }
+        renderLineChart(canvas, points, events, activities);
       } catch (error) {
         console.warn("Failed to render chart", error);
       }
@@ -108,9 +179,30 @@
         if (canvas.dataset.events) {
           events = JSON.parse(canvas.dataset.events);
         }
-        renderLineChart(canvas, combined, events);
+        var activities = [];
+        if (canvas.dataset.activities) {
+          activities = JSON.parse(canvas.dataset.activities);
+        }
+        renderLineChart(canvas, combined, events, activities);
       } catch (error) {
         console.warn("Failed to render grouped chart", error);
+      }
+    });
+
+    var metricCharts = document.querySelectorAll("canvas[data-metric-chart]");
+    metricCharts.forEach(function (canvas) {
+      try {
+        var raw = JSON.parse(canvas.dataset.metricChart || "[]");
+        var field = canvas.dataset.metricField;
+        var series = [];
+        (raw || []).forEach(function (item, idx) {
+          if (item && item[field] !== undefined && item[field] !== null) {
+            series.push({ ts: idx, value: item[field] });
+          }
+        });
+        renderMetricChart(canvas, series);
+      } catch (error) {
+        console.warn("Failed to render metric chart", error);
       }
     });
   }

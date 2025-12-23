@@ -17,6 +17,11 @@ def load_config():
     relative_change_threshold = float(relative_env) if relative_env != "" else None
     absolute_change_threshold = float(absolute_env) if absolute_env != "" else None
 
+    adaptive_enabled = (
+        os.getenv("ADAPTIVE_THRESHOLD_ENABLED", "false").lower()
+        in ("1", "true", "yes", "on")
+    )
+
     return {
         "ha_base_url": os.getenv("HA_BASE_URL", "http://homeassistant.local:8123"),
         "ha_token": os.getenv("HA_TOKEN", ""),
@@ -24,12 +29,20 @@ def load_config():
         "poll_interval": float(os.getenv("POLL_INTERVAL_SECONDS", "5")),
         "relative_change_threshold": relative_change_threshold,
         "absolute_change_threshold": absolute_change_threshold,
+        "adaptive_threshold_enabled": adaptive_enabled,
+        "adaptive_window": int(os.getenv("ADAPTIVE_THRESHOLD_WINDOW", "50")),
+        "adaptive_multiplier": float(os.getenv("ADAPTIVE_THRESHOLD_MULTIPLIER", "3")),
+        "adaptive_min_relative": float(os.getenv("ADAPTIVE_MIN_RELATIVE", "0.05")),
+        "adaptive_max_relative": float(os.getenv("ADAPTIVE_MAX_RELATIVE", "1.0")),
+        "hyperparam_tuning": os.getenv("HYPERPARAM_TUNING", "false").lower()
+        in ("1", "true", "yes", "on"),
         "segment_pre_samples": int(os.getenv("SEGMENT_PRE_SAMPLES", "15")),
         "segment_post_samples": int(os.getenv("SEGMENT_POST_SAMPLES", "15")),
         "min_labels": int(os.getenv("MIN_LABELS_PER_APPLIANCE", "5")),
         "status_ttl": int(os.getenv("STATUS_TTL_SECONDS", "300")),
         "unlabeled_ttl": int(os.getenv("UNLABELED_TTL_SECONDS", "7200")),
         "cleanup_interval": int(os.getenv("CLEANUP_INTERVAL_SECONDS", "300")),
+        "retrain_interval": int(os.getenv("RETRAIN_INTERVAL_SECONDS", "0")),
         "app_title": os.getenv("APP_TITLE", "HA Power Classifier"),
         "data_dir": os.getenv("DATA_DIR", "/data"),
         "mqtt_enabled": os.getenv("MQTT_ENABLED", "false").lower()
@@ -47,4 +60,3 @@ def load_config():
         "mqtt_client_id": os.getenv("MQTT_CLIENT_ID", "ha-power-classifier"),
         "mqtt_device_id": os.getenv("MQTT_DEVICE_ID", "ha_power_classifier"),
     }
-

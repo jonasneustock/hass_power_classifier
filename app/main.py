@@ -1,10 +1,11 @@
 import logging
 import sqlite3
+import json
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Form, Request, UploadFile, File
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -122,12 +123,14 @@ def on_startup():
                 publish_mqtt_discovery(appliance, config, mqtt_publisher)
             log_event("MQTT connected")
     log_event("Application started")
+    training_manager.start_scheduler()
     poller.start()
 
 
 @app.on_event("shutdown")
 def on_shutdown():
     poller.stop()
+    training_manager.stop_scheduler()
     if mqtt_publisher:
         mqtt_publisher.close()
     log_event("Application stopped")
@@ -166,6 +169,7 @@ def dashboard(request: Request):
         for seg in store.list_segments(limit=100, unlabeled_only=False)
         if (seg.get("predicted_phase") or seg.get("label_phase")) in ("start", "stop")
     ]
+    activity_events = list(getattr(poller, "activity_events", []))
     training = classifier.last_metrics
     return templates.TemplateResponse(
         "index.html",
@@ -179,6 +183,7 @@ def dashboard(request: Request):
             "recent_samples": recent_samples,
             "recent_by_sensor": recent_by_sensor,
             "detection_events": detection_events,
+            "activity_events": activity_events,
             "training": training,
             "training_state": training_manager.training_state,
         },
@@ -283,6 +288,12 @@ def update_appliance(
     appliance = store.get_appliance(name)
     if not appliance:
         return RedirectResponse(url="/appliances", status_code=303)
+    if not config.get("mqtt_enabled") and power_entity_id and power_entity_id != appliance["power_entity_id"]:
+        try:
+            ha_client.get_state(power_entity_id)
+        except Exception as exc:
+            logging.warning("Power entity check failed: %s", exc)
+            return RedirectResponse(url="/appliances", status_code=303)
     store.update_appliance_config(
         name,
         power_entity_id=power_entity_id or appliance["power_entity_id"],
@@ -291,6 +302,25 @@ def update_appliance(
         else appliance.get("activity_sensors", ""),
     )
     log_event(f"Appliance updated: {name}")
+    return RedirectResponse(url="/appliances", status_code=303)
+
+
+@app.post("/appliances/{name}/rename")
+def rename_appliance(name: str, new_name: str = Form(...)):
+    if store.get_appliance(new_name):
+        return RedirectResponse(url="/appliances", status_code=303)
+    try:
+        store.rename_appliance(name, new_name)
+        log_event(f"Appliance renamed from {name} to {new_name}")
+    except Exception as exc:
+        logging.warning("Failed to rename appliance: %s", exc)
+    return RedirectResponse(url="/appliances", status_code=303)
+
+
+@app.post("/appliances/{name}/delete")
+def delete_appliance(name: str):
+    store.delete_appliance(name)
+    log_event(f"Appliance deleted: {name}")
     return RedirectResponse(url="/appliances", status_code=303)
 
 
@@ -321,6 +351,29 @@ def segments_page(
     )
 
 
+@app.get("/segments/export")
+def export_segments():
+    segments = store.get_labeled_segments()
+    return JSONResponse(content={"segments": segments})
+
+
+@app.post("/segments/import")
+def import_segments(file: UploadFile = File(...)):
+    if not file:
+        return RedirectResponse(url="/segments", status_code=303)
+    try:
+        data = file.file.read()
+        payload = json.loads(data)
+        segments = payload.get("segments") if isinstance(payload, dict) else payload
+        if not isinstance(segments, list):
+            raise ValueError("Invalid payload")
+        inserted = store.import_segments(segments)
+        log_event(f"Imported {inserted} segments")
+    except Exception as exc:
+        log_event(f"Import failed: {exc}", level="error")
+    return RedirectResponse(url="/segments", status_code=303)
+
+
 @app.get("/segments/{segment_id}", response_class=HTMLResponse)
 def segment_detail(request: Request, segment_id: int):
     segment = store.get_segment(segment_id)
@@ -342,15 +395,28 @@ def segment_detail(request: Request, segment_id: int):
     )
 
 
+@app.get("/segments/next_unlabeled")
+def next_segment():
+    seg = store.get_latest_unlabeled_segment()
+    if seg:
+        return RedirectResponse(url=f"/segments/{seg['id']}", status_code=303)
+    return RedirectResponse(url="/segments", status_code=303)
+
+
 @app.post("/segments/{segment_id}/label")
 def label_segment(
     segment_id: int,
     appliance: str = Form(...),
     phase: str = Form(...),
+    next_segment: int = Form(0),
 ):
     store.update_segment_label(segment_id, appliance, phase)
     maybe_train_classifier()
     log_event(f"Labeled segment #{segment_id} as {appliance}/{phase}")
+    if next_segment:
+        next_seg = store.get_latest_unlabeled_segment()
+        if next_seg:
+            return RedirectResponse(url=f"/segments/{next_seg['id']}", status_code=303)
     return RedirectResponse(url="/segments", status_code=303)
 
 
@@ -430,3 +496,32 @@ def retrain_models():
     maybe_train_classifier()
     log_event("Manual retrain requested")
     return RedirectResponse(url="/models", status_code=303)
+
+
+# API endpoints
+@app.post("/api/retrain")
+def api_retrain():
+    maybe_train_classifier()
+    return {"status": "ok", "message": "training triggered"}
+
+
+@app.get("/api/metrics")
+def api_metrics():
+    return {
+        "training_state": training_manager.training_state,
+        "current_metrics": training_manager.metrics_history[-1]
+        if training_manager.metrics_history
+        else None,
+        "history": training_manager.metrics_history,
+    }
+
+
+@app.get("/api/segments")
+def api_segments(limit: int = 100):
+    segments = store.list_segments(limit=limit, unlabeled_only=False, candidate_only=False)
+    return {"segments": segments}
+
+
+@app.get("/api/appliances")
+def api_appliances():
+    return {"appliances": store.list_appliances()}
