@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, UploadFile, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from app import context
@@ -11,7 +11,7 @@ router = APIRouter(prefix="/segments")
 
 @router.get("", response_class=HTMLResponse)
 def segments_page(
-    request,
+    request: Request,
     candidate: int = 1,
     unlabeled: int = 1,
     min_change: float = 0.0,
@@ -68,7 +68,7 @@ def next_segment():
 
 
 @router.get("/{segment_id}", response_class=HTMLResponse)
-def segment_detail(request, segment_id: int):
+def segment_detail(request: Request, segment_id: int):
     segment = context.store.get_segment(segment_id)
     if not segment:
         return RedirectResponse(url="/segments", status_code=303)
@@ -132,4 +132,3 @@ def delete_segment(segment_id: int):
     context.store.delete_segment(segment_id)
     log_event(f"Deleted segment #{segment_id}")
     return RedirectResponse(url="/segments", status_code=303)
-
