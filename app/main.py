@@ -401,6 +401,14 @@ def import_segments(file: UploadFile = File(...)):
     return RedirectResponse(url="/segments", status_code=303)
 
 
+@app.get("/segments/next_unlabeled")
+def next_segment():
+    seg = store.get_latest_unlabeled_segment()
+    if seg:
+        return RedirectResponse(url=f"/segments/{seg['id']}", status_code=303)
+    return RedirectResponse(url="/segments", status_code=303)
+
+
 @app.get("/segments/{segment_id}", response_class=HTMLResponse)
 def segment_detail(request: Request, segment_id: int):
     segment = store.get_segment(segment_id)
@@ -420,14 +428,6 @@ def segment_detail(request: Request, segment_id: int):
             "config": config,
         },
     )
-
-
-@app.get("/segments/next_unlabeled")
-def next_segment():
-    seg = store.get_latest_unlabeled_segment()
-    if seg:
-        return RedirectResponse(url=f"/segments/{seg['id']}", status_code=303)
-    return RedirectResponse(url="/segments", status_code=303)
 
 
 @app.post("/segments/{segment_id}/label")
