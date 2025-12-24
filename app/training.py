@@ -90,7 +90,16 @@ class TrainingManager:
             for seg in labeled:
                 samples = self.store.get_samples_between(seg["start_ts"], seg["end_ts"])
                 diffs = samples_to_diffs(samples)
-                values.extend([s["value"] for s in diffs])
+                if not diffs:
+                    continue
+                flank = seg.get("flank")
+                if flank == "positive":
+                    val = diffs[-1]["value"]
+                elif flank == "negative":
+                    val = diffs[0]["value"]
+                else:
+                    continue
+                values.append(max(0.0, float(val)))
             if values:
                 stats[name] = {
                     "min_power": float(np.min(values)),
