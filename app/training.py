@@ -139,9 +139,7 @@ class TrainingManager:
                 return
             labeled_segments = self.store.get_labeled_segments()
             labeled_segments = [
-                seg
-                for seg in labeled_segments
-                if seg["label_appliance"] in eligible and seg["label_phase"] != "base"
+                seg for seg in labeled_segments if seg["label_appliance"] in eligible
             ]
             if not labeled_segments:
                 log_event("Training skipped: no labeled segments", level="warning")

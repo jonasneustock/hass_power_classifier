@@ -1,19 +1,19 @@
-# TODOs / Next Steps
+# TODOs / Refactors
 
-- [x] Add richer model monitoring: sparkline history of classifier and regression metrics on the Models page.
-- [x] Implement automatic hyperparameter search for classifier and regression tree (config toggle).
-- [x] Add export/import of labeled segments for sharing/backup.
-- [x] Surface activity sensor events on the dashboard timeline.
-- [x] Add delete/edit/rename flows for appliances with HA validation.
-- [x] Improve diff threshold auto-tuning (adaptive thresholds).
-- [x] Implement background retraining schedules (configurable cadence).
-- [x] Add automation-friendly API endpoints (retrain, metrics, segments, appliances).
-- [x] Expand tests for config/logging/imports.
-- [x] Remove proposed value on segment view but keep top-3 predictions.
-- [x] Add batch labeling button and flow to jump through unlabeled segments.
-- [x] Train models on segment data for all given phases/powerlines (per-sensor diffs).
-- [x] Write a blogpost with further enhancement ideas.
-
-New ideas:
-- Add UI/API token or auth guard for automation endpoints.
-- Offer CSV export/import alongside JSON for segments.
+- [ ] Split main.py into routers (dashboard/segments/appliances/models/logs/api) and an app factory; reduce globals.
+  - Create FastAPI app in a factory; register routers from separate modules; inject services.
+- [ ] Refactor poller: separate sensor polling, adaptive thresholding, segment creation, activity/learning hints, and power publishing.
+  - Make HA/MQTT interactions injectable; add unit tests for thresholds and hints.
+- [ ] Tidy training manager: isolate eligibility checks, metric persistence, scheduler into smaller helpers.
+  - Make power stats computation pure; decouple metric history I/O.
+- [ ] Extract model tuning logic: centralize hyperparameter grids/utilities for classifier/regression; normalize train/predict interfaces.
+  - Keep feature extraction consistent and reusable.
+- [ ] DataStore cleanup: group SQL by concern, add transaction helpers, consider a small repository layer.
+  - Centralize schema evolution/migrations in one place.
+- [ ] Templates/JS: move repeated UI pieces into partials; isolate chart rendering; align data shapes between backend and frontend.
+  - Consider a shared schema/typing for chart data.
+- [ ] Configuration: move env parsing to dataclasses/pydantic with validation by domain (segmentation/training/MQTT/scheduler).
+  - Fail fast on invalid config; simplify defaults.
+- [ ] API/Auth: add token guard for automation endpoints; split `/api` routes into their own router with consistent responses.
+- [ ] Tests: add fakes for HA/MQTT/poller; cover adaptive thresholds, learning hints, and new routing/config validation.
+  - Raise coverage on new modules after refactor.

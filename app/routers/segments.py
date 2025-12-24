@@ -1,0 +1,135 @@
+import json
+
+from fastapi import APIRouter, File, Form, UploadFile
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+
+from app import context
+from app.logging_utils import log_event
+
+router = APIRouter(prefix="/segments")
+
+
+@router.get("", response_class=HTMLResponse)
+def segments_page(
+    request,
+    candidate: int = 1,
+    unlabeled: int = 1,
+    min_change: float = 0.0,
+):
+    segments = context.store.list_segments(
+        limit=200,
+        unlabeled_only=bool(unlabeled),
+        candidate_only=bool(candidate),
+    )
+    if min_change > 0:
+        segments = [s for s in segments if s["change_score"] >= min_change]
+    return context.templates.TemplateResponse(
+        "segments.html",
+        {
+            "request": request,
+            "segments": segments,
+            "candidate": candidate,
+            "unlabeled": unlabeled,
+            "min_change": min_change,
+            "config": context.config,
+        },
+    )
+
+
+@router.get("/export")
+def export_segments():
+    segments = context.store.get_labeled_segments()
+    return JSONResponse(content={"segments": segments})
+
+
+@router.post("/import")
+def import_segments(file: UploadFile = File(...)):
+    if not file:
+        return RedirectResponse(url="/segments", status_code=303)
+    try:
+        data = file.file.read()
+        payload = json.loads(data)
+        segments = payload.get("segments") if isinstance(payload, dict) else payload
+        if not isinstance(segments, list):
+            raise ValueError("Invalid payload")
+        inserted = context.store.import_segments(segments)
+        log_event(f"Imported {inserted} segments")
+    except Exception as exc:
+        log_event(f"Import failed: {exc}", level="error")
+    return RedirectResponse(url="/segments", status_code=303)
+
+
+@router.get("/next_unlabeled")
+def next_segment():
+    seg = context.store.get_latest_unlabeled_segment()
+    if seg:
+        return RedirectResponse(url=f"/segments/{seg['id']}", status_code=303)
+    return RedirectResponse(url="/segments", status_code=303)
+
+
+@router.get("/{segment_id}", response_class=HTMLResponse)
+def segment_detail(request, segment_id: int):
+    segment = context.store.get_segment(segment_id)
+    if not segment:
+        return RedirectResponse(url="/segments", status_code=303)
+    samples = context.store.get_samples_between(segment["start_ts"], segment["end_ts"])
+    appliances = [a for a in context.store.list_appliances() if not a.get("learning_appliance")]
+    predictions = context.classifier.top_predictions(segment, top_n=3)
+    return context.templates.TemplateResponse(
+        "segment_detail.html",
+        {
+            "request": request,
+            "segment": segment,
+            "samples": samples,
+            "appliances": appliances,
+            "predictions": predictions,
+            "config": context.config,
+        },
+    )
+
+
+@router.post("/{segment_id}/label")
+def label_segment(
+    segment_id: int,
+    appliance: str = Form(...),
+    phase: str = Form(...),
+    next_segment: int = Form(0),
+):
+    context.store.update_segment_label(segment_id, appliance, phase)
+    context.training_manager.trigger_training()
+    log_event(f"Labeled segment #{segment_id} as {appliance}/{phase}")
+    if next_segment:
+        next_seg = context.store.get_latest_unlabeled_segment()
+        if next_seg:
+            return RedirectResponse(url=f"/segments/{next_seg['id']}", status_code=303)
+    return RedirectResponse(url="/segments", status_code=303)
+
+
+@router.post("/{segment_id}/accept_prediction")
+def accept_prediction(segment_id: int):
+    segment = context.store.get_segment(segment_id)
+    if not segment or not segment.get("predicted_appliance") or not segment.get("predicted_phase"):
+        return RedirectResponse(url=f"/segments/{segment_id}", status_code=303)
+    context.store.update_segment_label(
+        segment_id, segment["predicted_appliance"], segment["predicted_phase"]
+    )
+    log_event(
+        f"Accepted prediction for segment #{segment_id}: {segment['predicted_appliance']}/{segment['predicted_phase']}"
+    )
+    context.training_manager.trigger_training()
+    return RedirectResponse(url=f"/segments/{segment_id}", status_code=303)
+
+
+@router.post("/{segment_id}/reject_prediction")
+def reject_prediction(segment_id: int):
+    context.store.clear_segment_prediction(segment_id)
+    log_event(f"Rejected prediction for segment #{segment_id}")
+    return RedirectResponse(url=f"/segments/{segment_id}", status_code=303)
+
+
+@router.post("/{segment_id}/delete")
+def delete_segment(segment_id: int):
+    context.store.delete_segment(segment_id)
+    log_event(f"Deleted segment #{segment_id}")
+    return RedirectResponse(url="/segments", status_code=303)
+

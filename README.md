@@ -49,6 +49,13 @@ All configuration is handled via environment variables in `.env`:
 - `MQTT_DEVICE_ID`: Device identifier used for discovery unique IDs
 - `RETRAIN_INTERVAL_SECONDS`: Auto-retrain cadence (0 to disable)
 - `HYPERPARAM_TUNING`: Enable hyperparameter search for classifier/regression
+
+## Project structure
+- `app/context.py`: Instantiates config, datastore, HA client, classifiers, poller, training manager, templates.
+- `app/main.py`: App factory, startup/shutdown hooks, router registration.
+- `app/routers/`: Feature routers (`dashboard`, `segments`, `appliances`, `models_page`, `logs_page`, `api`).
+- `app/poller.py`: Sensor polling, adaptive thresholds, segmentation, activity/learning hints, power publishing.
+- `app/training.py`: Training manager, metrics history, scheduler, power stats calculation.
 ## Model training
 - Classifier: RandomForest on diff-based segment features; uses an 80/20 train/test split when there are at least 5 samples and more than 1 class, otherwise trains on all data. Classes with fewer than 5 labeled segments are skipped to avoid underfitting. Metrics recorded: accuracy, precision, recall, F1, sample and class counts.
 - Regression: per-appliance LinearRegression on diff samples vs. time since start; uses an 80/20 split when there are at least 10 samples, otherwise trains on all data. Metrics recorded: MSE and MAPE.
@@ -61,17 +68,18 @@ pytest --cov=app --cov-report=term
 | Module | Stmts | Miss | Cover |
 | --- | ---:| ---:| ---:|
 | app/__init__.py | 0 | 0 | 100% |
-| app/classifier.py | 124 | 25 | 80% |
-| app/config.py | 15 | 15 | 0% |
-| app/data_store.py | 177 | 35 | 80% |
+| app/classifier.py | 185 | 62 | 66% |
+| app/config.py | 16 | 1 | 94% |
+| app/data_store.py | 253 | 82 | 68% |
 | app/ha_client.py | 32 | 0 | 100% |
-| app/logging_utils.py | 9 | 9 | 0% |
-| app/main.py | 215 | 215 | 0% |
+| app/logging_utils.py | 9 | 0 | 100% |
+| app/main.py | 71 | 71 | 0% |
 | app/mqtt_client.py | 53 | 53 | 0% |
-| app/poller.py | 159 | 159 | 0% |
-| app/training.py | 98 | 98 | 0% |
+| app/poller.py | 251 | 251 | 0% |
+| app/training.py | 125 | 93 | 26% |
 | app/utils.py | 59 | 1 | 98% |
-| **Total** | 941 | 610 | **35%** |
+| app/context.py | 33 | 33 | 0% |
+| **Total** | 1087 | 647 | **40%** |
 
 ## Notes
 - When MQTT is enabled, the app publishes MQTT discovery topics for each appliance and pushes power to `MQTT_BASE_TOPIC/<appliance>/power`.
