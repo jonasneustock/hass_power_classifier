@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
 from app import context
+from app.logging_utils import log_event
 
 router = APIRouter()
 
