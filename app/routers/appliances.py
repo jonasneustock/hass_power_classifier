@@ -116,6 +116,7 @@ def create_appliance(
         from app.main import publish_mqtt_discovery
 
         publish_mqtt_discovery(appliance_row, context.config, context.mqtt_publisher)
+    log_event(f"Appliance created successfully: {name}")
     return RedirectResponse(url="/appliances", status_code=303)
 
 
@@ -174,4 +175,3 @@ def delete_appliance(name: str):
     context.store.delete_appliance(name)
     log_event(f"Appliance deleted: {name}")
     return RedirectResponse(url="/appliances", status_code=303)
-

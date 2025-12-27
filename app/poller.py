@@ -101,6 +101,7 @@ class PowerPoller:
             self.store.add_sample(ts, total_value)
             if self.prev_total is None:
                 self.prev_total = total_value
+                log_event(f"Initial total set {total_value}", level="info")
                 time.sleep(self.config["poll_interval"])
                 continue
             self._poll_activity_sensors(ts)
@@ -110,6 +111,10 @@ class PowerPoller:
             self.prev_total = total_value
             self.samples_diff.append((ts, diff_value))
             self.sample_count += 1
+            log_event(
+                f"Diff recorded ts={ts} value={round(diff_value,3)} sample_count={self.sample_count}",
+                level="info",
+            )
             self.recent_total_diffs.append({"ts": ts, "value": diff_value})
             for sensor in self.sensors:
                 samples = self.store.get_recent_sensor_samples(sensor, limit=2)

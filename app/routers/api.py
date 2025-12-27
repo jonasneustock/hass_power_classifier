@@ -8,11 +8,13 @@ router = APIRouter(prefix="/api")
 @router.post("/retrain")
 def api_retrain():
     context.training_manager.trigger_training()
+    log_event("API retrain requested")
     return {"status": "ok", "message": "training triggered"}
 
 
 @router.get("/metrics")
 def api_metrics():
+    log_event("API metrics requested")
     return {
         "training_state": context.training_manager.training_state,
         "current_metrics": context.training_manager.metrics_history[-1]
@@ -24,6 +26,7 @@ def api_metrics():
 
 @router.get("/segments")
 def api_segments(limit: int = 100):
+    log_event(f"API segments requested (limit={limit})")
     segments = context.store.list_segments(
         limit=limit, unlabeled_only=False, candidate_only=False
     )
@@ -32,5 +35,5 @@ def api_segments(limit: int = 100):
 
 @router.get("/appliances")
 def api_appliances():
+    log_event("API appliances requested")
     return {"appliances": context.store.list_appliances()}
-

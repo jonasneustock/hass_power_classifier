@@ -112,6 +112,7 @@ class ClassifierService:
         best_model = None
         best_metrics = None
         best_acc = -1
+        best_params = None
         for params in candidate_params:
             model_candidate, met = train_eval(params)
             acc = met.get("accuracy") if met else None
@@ -121,6 +122,7 @@ class ClassifierService:
                 best_acc = acc
                 best_model = model_candidate
                 best_metrics = met
+                best_params = params
 
         model = best_model
         metrics = best_metrics or metrics
@@ -131,7 +133,7 @@ class ClassifierService:
             self.last_metrics = metrics
             self._save()
         log_event(
-            f"Classifier trained: samples={metrics['samples']} classes={metrics['classes']} accuracy={metrics.get('accuracy')}",
+            f"Classifier trained: samples={metrics['samples']} classes={metrics['classes']} accuracy={metrics.get('accuracy')} params={best_params}",
             level="info",
         )
         return metrics
@@ -224,6 +226,7 @@ class RegressionService:
                         X.append([t])
                         y.append(sample["value"])
             if len(X) < 5:
+                log_event(f"Regression skipped for {appliance}: not enough samples ({len(X)})", level="warning")
                 continue
             X_arr = np.array(X)
             y_arr = np.array(y)
@@ -261,6 +264,10 @@ class RegressionService:
                 all_y_pred.extend(list(preds))
             if best_model is not None:
                 models[appliance] = best_model
+                log_event(
+                    f"Regression trained for {appliance}: samples={len(X_arr)}, mse_candidate={best_mse}",
+                    level="info",
+                )
 
         with self.lock:
             self.models = models

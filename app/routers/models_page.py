@@ -9,6 +9,7 @@ router = APIRouter(prefix="/models")
 
 @router.get("", response_class=HTMLResponse)
 def models_page(request: Request):
+    log_event("Models page viewed")
     labeled_segments = context.store.get_labeled_segments()
     counts = context.store.get_label_counts_by_appliance()
     appliances = context.store.list_appliances()
@@ -38,4 +39,3 @@ def retrain_models():
     context.training_manager.trigger_training()
     log_event("Manual retrain requested")
     return RedirectResponse(url="/models", status_code=303)
-

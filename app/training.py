@@ -119,6 +119,7 @@ class TrainingManager:
         log_event("Training started")
         try:
             appliances = self.store.list_appliances()
+            log_event(f"Training: {len(appliances)} appliances loaded")
             if not appliances:
                 log_event("Training skipped: no appliances", level="warning")
                 self.training_state["last_finished"] = int(time.time())
@@ -130,6 +131,7 @@ class TrainingManager:
                 for appliance in appliances
                 if counts.get(appliance["name"], 0) >= min_required
             }
+            log_event(f"Training eligibility: {len(eligible)} / {len(appliances)} meet min_labels={min_required}")
             if not eligible:
                 log_event(
                     "Training skipped: no appliance meets label threshold",
@@ -141,6 +143,7 @@ class TrainingManager:
             labeled_segments = [
                 seg for seg in labeled_segments if seg["label_appliance"] in eligible
             ]
+            log_event(f"Training: {len(labeled_segments)} labeled segments considered")
             if not labeled_segments:
                 log_event("Training skipped: no labeled segments", level="warning")
                 self.training_state["last_finished"] = int(time.time())
@@ -162,6 +165,9 @@ class TrainingManager:
                 self.store.update_appliance_power_stats(
                     name, stats["min_power"], stats["mean_power"], stats["max_power"]
                 )
+            log_event(
+                f"Training finished: clf_metrics={clf_metrics}, reg_metrics={reg_metrics}, power_stats={list(power_stats.keys())}"
+            )
             self.training_state["last_finished"] = int(time.time())
             metrics_entry = {
                 "ts": self.training_state["last_finished"],

@@ -17,6 +17,7 @@ def segments_page(
     unlabeled: int = 1,
     min_change: float = 0.0,
 ):
+    log_event(f"Segments page viewed (candidate={candidate}, unlabeled={unlabeled}, min_change={min_change})")
     segments = context.store.list_segments(
         limit=200,
         unlabeled_only=bool(unlabeled),
@@ -40,6 +41,7 @@ def segments_page(
 @router.get("/export")
 def export_segments():
     segments = context.store.get_labeled_segments()
+    log_event(f"Segments export: {len(segments)} items")
     return JSONResponse(content={"segments": segments})
 
 
@@ -63,6 +65,7 @@ def import_segments(file: UploadFile = File(...)):
 @router.get("/next_unlabeled")
 def next_segment():
     seg = context.store.get_latest_unlabeled_segment()
+    log_event("Next unlabeled segment requested")
     if seg:
         return RedirectResponse(url=f"/segments/{seg['id']}", status_code=303)
     return RedirectResponse(url="/segments", status_code=303)
@@ -72,7 +75,9 @@ def next_segment():
 def segment_detail(request: Request, segment_id: int):
     segment = context.store.get_segment(segment_id)
     if not segment:
+        log_event(f"Segment {segment_id} not found", level="warning")
         return RedirectResponse(url="/segments", status_code=303)
+    log_event(f"Segment detail requested for #{segment_id}")
     samples = context.store.get_samples_between(segment["start_ts"], segment["end_ts"])
     appliances = [a for a in context.store.list_appliances() if not a.get("learning_appliance")]
     predictions = context.classifier.top_predictions(segment, top_n=3)

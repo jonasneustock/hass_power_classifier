@@ -8,6 +8,7 @@ router = APIRouter()
 
 @router.get("/logs", response_class=HTMLResponse)
 def logs_page(request: Request):
+    log_event("Logs page viewed")
     return context.templates.TemplateResponse(
         "logs.html",
         {
@@ -20,4 +21,3 @@ def logs_page(request: Request):
 @router.get("/logs/feed")
 def get_logs():
     return {"logs": list(context.recent_logs)[:100]}
-

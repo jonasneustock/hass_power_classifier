@@ -60,6 +60,7 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     def on_startup():
+        log_event("Application start")
         context.training_manager.ensure_base_appliance()
         context.store.clear_phase_data()
         check_ha_connection()

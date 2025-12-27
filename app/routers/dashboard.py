@@ -2,12 +2,14 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
 from app import context
+from app.logging_utils import log_event
 
 router = APIRouter()
 
 
 @router.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
+    log_event("Dashboard requested")
     latest_sample = context.store.get_latest_sample()
     latest_per_sensor = context.store.get_latest_sensor_samples()
     appliances = context.store.list_appliances()
