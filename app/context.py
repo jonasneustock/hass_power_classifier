@@ -8,7 +8,7 @@ from app.classifier import ClassifierService, RegressionService
 from app.config import load_config
 from app.data_store import DataStore
 from app.ha_client import HAClient
-from app.logging_utils import log_event
+from app.logging_utils import log_event, recent_logs
 from app.mqtt_client import MqttPublisher
 from app.poller import PowerPoller
 from app.training import TrainingManager
@@ -49,4 +49,3 @@ poller = PowerPoller(
 
 templates = Jinja2Templates(directory=str(base_dir / "templates"))
 templates.env.filters["format_ts"] = format_ts
-

@@ -335,7 +335,7 @@ class DataStore:
             )
             self.conn.commit()
 
-    def update_segment_prediction(self, segment_id, appliance, phase):
+    def update_segment_prediction(self, segment_id, appliance, phase=None):
         with self.lock:
             self.conn.execute(
                 """
@@ -508,7 +508,7 @@ class DataStore:
             cursor = self.conn.execute(
                 """
                 SELECT * FROM segments
-                WHERE label_appliance IS NOT NULL AND label_phase IS NOT NULL
+                WHERE label_appliance IS NOT NULL
                 ORDER BY start_ts DESC
                 """
             )
@@ -545,5 +545,12 @@ class DataStore:
                 WHERE id = ?
                 """,
                 (segment_id,),
+            )
+            self.conn.commit()
+
+    def clear_phase_data(self):
+        with self.lock:
+            self.conn.execute(
+                "UPDATE segments SET label_phase = NULL, predicted_phase = NULL"
             )
             self.conn.commit()

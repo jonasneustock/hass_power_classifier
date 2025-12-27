@@ -1,5 +1,6 @@
 import numpy as np
 
+from app.logging_utils import log_event
 
 def compute_features(samples):
     timestamps = np.array([s[0] for s in samples], dtype=np.float64)
@@ -90,3 +91,37 @@ def samples_to_diffs(samples):
         curr = ordered[i]
         diffs.append({"ts": curr["ts"], "value": curr["value"] - prev["value"]})
     return diffs
+
+
+def compute_segment_delta(store, segment):
+    samples = store.get_samples_between(segment["start_ts"], segment["end_ts"])
+    diffs = samples_to_diffs(samples)
+    if not diffs:
+        return 0.0
+    values = [d["value"] for d in diffs]
+    delta = max(values) - min(values)
+    return max(0.0, float(delta))
+
+
+def push_power_value(appliance, watts, store, ha_client, mqtt_publisher, config):
+    appliance_row = store.get_appliance(appliance)
+    if not appliance_row:
+        return
+    watts = max(0.0, float(watts))
+    store.update_appliance_current_power(appliance, watts)
+    if config.get("mqtt_enabled") and mqtt_publisher:
+        topics = build_mqtt_topics(appliance_row, config)
+        if mqtt_publisher.publish_value(topics["power_state_topic"], round(watts, 2), retain=True):
+            log_event(f"Power published for {appliance}: {round(watts,2)} W")
+        else:
+            log_event(f"Failed to publish MQTT power for {appliance}", level="warning")
+        return
+    try:
+        ha_client.set_state(
+            appliance_row["power_entity_id"],
+            round(watts, 2),
+            {"appliance": appliance, "source": "ha_power_classifier"},
+        )
+        log_event(f"Power set for {appliance}: {round(watts,2)} W")
+    except Exception as exc:
+        log_event(f"Failed to push power for {appliance}: {exc}", level="warning")

@@ -49,7 +49,7 @@ class ClassifierService:
             appliance = segment["label_appliance"]
             if eligible_appliances and appliance not in eligible_appliances:
                 continue
-            label = f"{appliance}|{segment['label_phase']}"
+            label = appliance
             features = [
                 segment["mean"],
                 segment["std"],
@@ -148,11 +148,7 @@ class ClassifierService:
                 ]
             )
             prediction = self.model.predict(features)[0]
-        if "|" in prediction:
-            appliance, phase = prediction.split("|", 1)
-        else:
-            appliance, phase = prediction, "unknown"
-        return appliance, phase
+        return prediction
 
     def top_predictions(self, segment, top_n=3):
         with self.lock:
@@ -175,11 +171,8 @@ class ClassifierService:
             classes = self.model.classes_
         scored = []
         for cls, prob in zip(classes, probs):
-            if "|" in cls:
-                appliance, phase = cls.split("|", 1)
-            else:
-                appliance, phase = cls, "unknown"
-            scored.append({"appliance": appliance, "phase": phase, "prob": float(prob)})
+            appliance = cls
+            scored.append({"appliance": appliance, "prob": float(prob)})
         scored.sort(key=lambda x: x["prob"], reverse=True)
         return scored[:top_n]
 

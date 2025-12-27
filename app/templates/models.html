@@ -133,7 +133,6 @@
         <tr>
           <th class="px-4 py-2 text-left font-semibold text-slate-600">ID</th>
           <th class="px-4 py-2 text-left font-semibold text-slate-600">Appliance</th>
-          <th class="px-4 py-2 text-left font-semibold text-slate-600">Phase</th>
           <th class="px-4 py-2 text-left font-semibold text-slate-600">Window</th>
           <th class="px-4 py-2 text-left font-semibold text-slate-600">Mean</th>
           <th class="px-4 py-2 text-left font-semibold text-slate-600">Change</th>
@@ -144,7 +143,6 @@
         <tr>
           <td class="px-4 py-2 text-slate-800">#{{ segment.id }}</td>
           <td class="px-4 py-2 text-slate-800">{{ segment.label_appliance }}</td>
-          <td class="px-4 py-2 text-slate-800">{{ segment.label_phase }}</td>
           <td class="px-4 py-2 text-slate-800">{{ segment.start_ts | format_ts }} - {{ segment.end_ts | format_ts }}</td>
           <td class="px-4 py-2 text-slate-800">{{ segment.mean }}</td>
           <td class="px-4 py-2 text-slate-800">{{ (segment.change_score * 100) | round(1) }}%</td>

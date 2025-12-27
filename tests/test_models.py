@@ -113,6 +113,5 @@ def test_classifier_predict_returns_tuple(tmp_path):
         "slope": 0.1,
         "change_score": 0.3,
     }
-    appliance, phase = clf.predict(segment)
+    appliance = clf.predict(segment)
     assert isinstance(appliance, str)
-    assert isinstance(phase, str)

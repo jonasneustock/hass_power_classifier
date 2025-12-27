@@ -58,14 +58,14 @@
           <td class="px-4 py-2 text-slate-700">{{ segment.flank or '-' }}</td>
           <td class="px-4 py-2 text-slate-700">
             {% if segment.label_appliance %}
-              {{ segment.label_appliance }} / {{ segment.label_phase }}
+              {{ segment.label_appliance }}
             {% else %}
               -
             {% endif %}
           </td>
           <td class="px-4 py-2 text-slate-700">
             {% if segment.predicted_appliance %}
-              {{ segment.predicted_appliance }} / {{ segment.predicted_phase }}
+              {{ segment.predicted_appliance }}
             {% else %}
               -
             {% endif %}

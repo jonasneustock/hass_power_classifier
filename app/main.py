@@ -61,6 +61,7 @@ def create_app() -> FastAPI:
     @app.on_event("startup")
     def on_startup():
         context.training_manager.ensure_base_appliance()
+        context.store.clear_phase_data()
         check_ha_connection()
         if context.mqtt_publisher:
             try:
@@ -104,4 +105,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-

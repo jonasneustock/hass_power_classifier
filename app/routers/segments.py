@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from app import context
 from app.logging_utils import log_event
+from app.utils import compute_segment_delta, push_power_value
 
 router = APIRouter(prefix="/segments")
 
@@ -92,12 +93,23 @@ def segment_detail(request: Request, segment_id: int):
 def label_segment(
     segment_id: int,
     appliance: str = Form(...),
-    phase: str = Form(...),
     next_segment: int = Form(0),
 ):
-    context.store.update_segment_label(segment_id, appliance, phase)
+    context.store.update_segment_label(segment_id, appliance, None)
     context.training_manager.trigger_training()
-    log_event(f"Labeled segment #{segment_id} as {appliance}/{phase}")
+    segment = context.store.get_segment(segment_id)
+    if segment:
+        flank = segment.get("flank")
+        delta = compute_segment_delta(context.store, segment)
+        current = context.store.get_appliance(appliance).get("current_power") or 0
+        if flank == "negative":
+            new_power = max(0.0, current - delta)
+        else:
+            new_power = current + delta
+        push_power_value(
+            appliance, new_power, context.store, context.ha_client, context.mqtt_publisher, context.config
+        )
+    log_event(f"Labeled segment #{segment_id} as {appliance}")
     if next_segment:
         next_seg = context.store.get_latest_unlabeled_segment()
         if next_seg:
@@ -108,13 +120,22 @@ def label_segment(
 @router.post("/{segment_id}/accept_prediction")
 def accept_prediction(segment_id: int):
     segment = context.store.get_segment(segment_id)
-    if not segment or not segment.get("predicted_appliance") or not segment.get("predicted_phase"):
+    if not segment or not segment.get("predicted_appliance"):
         return RedirectResponse(url=f"/segments/{segment_id}", status_code=303)
-    context.store.update_segment_label(
-        segment_id, segment["predicted_appliance"], segment["predicted_phase"]
+    appliance = segment["predicted_appliance"]
+    context.store.update_segment_label(segment_id, appliance, None)
+    delta = compute_segment_delta(context.store, segment)
+    current = context.store.get_appliance(appliance).get("current_power") or 0
+    flank = segment.get("flank")
+    if flank == "negative":
+        new_power = max(0.0, current - delta)
+    else:
+        new_power = current + delta
+    push_power_value(
+        appliance, new_power, context.store, context.ha_client, context.mqtt_publisher, context.config
     )
     log_event(
-        f"Accepted prediction for segment #{segment_id}: {segment['predicted_appliance']}/{segment['predicted_phase']}"
+        f"Accepted prediction for segment #{segment_id}: {segment['predicted_appliance']}"
     )
     context.training_manager.trigger_training()
     return RedirectResponse(url=f"/segments/{segment_id}", status_code=303)

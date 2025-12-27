@@ -5,7 +5,7 @@ from collections import deque
 from statistics import pstdev
 
 from app.logging_utils import log_event
-from app.utils import build_mqtt_topics, compute_features
+from app.utils import build_mqtt_topics, compute_features, compute_segment_delta, push_power_value
 
 
 class PowerPoller:
@@ -37,7 +37,6 @@ class PowerPoller:
         self.learning_events = deque(maxlen=200)
         self.stop_event = threading.Event()
         self.thread = None
-        self.active_sessions = {}
         self.prev_total = None
 
     def start(self):
@@ -165,36 +164,26 @@ class PowerPoller:
                             )
                             learn_hint = self._learning_hint(segment_samples[-1][0])
                             if learn_hint:
-                                self.store.update_segment_label(
-                                    segment_id,
-                                    learn_hint["appliance"],
-                                    learn_hint["phase"],
-                                )
+                                self.store.update_segment_label(segment_id, learn_hint["appliance"], None)
                                 log_event(
-                                    f"Learning appliance auto-label for segment #{segment_id}: {learn_hint['appliance']}/{learn_hint['phase']}"
+                                    f"Learning appliance auto-label for segment #{segment_id}: {learn_hint['appliance']}"
                                 )
+                                self._apply_power_for_segment(segment_id, segment, learn_hint["appliance"], learn_hint.get("flank", flank))
                             hint = self._activity_hint(segment_samples[-1][0])
                             if hint:
                                 segment["predicted_appliance"] = hint["appliance"]
-                                segment["predicted_phase"] = hint["phase"]
-                                self.store.update_segment_prediction(
-                                    segment_id,
-                                    hint["appliance"],
-                                    hint["phase"],
-                                )
+                                self.store.update_segment_prediction(segment_id, hint["appliance"])
                                 log_event(
-                                    f"Activity hint applied to segment #{segment_id}: {hint['appliance']}/{hint['phase']}"
+                                    f"Activity hint applied to segment #{segment_id}: {hint['appliance']}"
                                 )
                             prediction = self.classifier.predict(segment)
                             if prediction:
-                                appliance, phase = prediction
-                                self.store.update_segment_prediction(
-                                    segment_id, appliance, phase
-                                )
+                                appliance = prediction
+                                self.store.update_segment_prediction(segment_id, appliance)
                                 log_event(
-                                    f"Prediction for segment #{segment_id}: {appliance}/{phase}"
+                                    f"Prediction for segment #{segment_id}: {appliance}"
                                 )
-                                self._record_phase(appliance, phase, ts)
+                                self._apply_power_for_segment(segment_id, segment, appliance, flank)
                     self.pending_segment = None
 
             if ts - self.last_cleanup_ts >= self.config["cleanup_interval"]:
@@ -207,7 +196,6 @@ class PowerPoller:
                     log_event(f"Cleanup removed {deleted} stale segments")
                 self.last_cleanup_ts = ts
 
-            self._push_power_allocations(ts, total_value)
             time.sleep(self.config["poll_interval"])
 
     def _poll_activity_sensors(self, ts):
@@ -270,8 +258,16 @@ class PowerPoller:
             if diff == 0:
                 continue
             phase = "start" if diff > 0 else "stop"
+            flank = "positive" if diff > 0 else "negative"
             self.learning_events.append(
-                {"ts": ts, "appliance": appliance["name"], "phase": phase, "sensor": sensor, "diff": diff}
+                {
+                    "ts": ts,
+                    "appliance": appliance["name"],
+                    "phase": phase,
+                    "sensor": sensor,
+                    "diff": diff,
+                    "flank": flank,
+                }
             )
 
     def _learning_hint(self, segment_ts):
@@ -283,90 +279,13 @@ class PowerPoller:
                 return event
         return None
 
-    def _record_phase(self, appliance, phase, ts):
-        appliance_row = self.store.get_appliance(appliance)
-        if not appliance_row:
+    def _apply_power_for_segment(self, segment_id, segment, appliance, flank):
+        delta = compute_segment_delta(self.store, segment)
+        if delta <= 0:
             return
-        last_status = appliance_row.get("last_status")
-        if last_status == phase:
-            return
-        if phase == "start":
-            self.active_sessions[appliance] = ts
-        if phase == "stop":
-            self.active_sessions.pop(appliance, None)
-        self.store.update_appliance_status(appliance, phase, ts)
-        log_event(f"Phase update for {appliance}: {phase}")
-        if last_status == "start" and phase == "stop":
-            if self.config.get("mqtt_enabled") and self.mqtt_publisher:
-                topics = build_mqtt_topics(appliance_row, self.config)
-                if not self.mqtt_publisher.publish_value(
-                    topics["power_state_topic"], 0, retain=True
-                ):
-                    logging.warning("Failed to publish MQTT power 0 for %s", appliance)
-                else:
-                    log_event(f"Power reset to 0 for {appliance}")
-                self.store.update_appliance_current_power(appliance, 0)
-            else:
-                try:
-                    self.ha_client.set_state(
-                        appliance_row["power_entity_id"],
-                        0,
-                        {
-                            "appliance": appliance,
-                            "source": "ha_power_classifier",
-                        },
-                    )
-                    log_event(f"Power reset to 0 for {appliance}")
-                except Exception as exc:
-                    logging.warning("Failed to reset power for %s: %s", appliance, exc)
-                else:
-                    self.store.update_appliance_current_power(appliance, 0)
-
-    def _push_power_allocations(self, ts, total_power):
-        appliances = {a["name"]: a for a in self.store.list_appliances()}
-        if not self.active_sessions:
-            return
-
-        for appliance_name, start_ts in list(self.active_sessions.items()):
-            appliance = appliances.get(appliance_name)
-            if not appliance:
-                continue
-            elapsed = max(0, ts - start_ts)
-            predicted = self.regression_service.predict(appliance_name, elapsed)
-            watts = predicted
-            if watts is None or watts <= 0:
-                watts = (
-                    appliance.get("mean_power")
-                    or appliance.get("running_watts")
-                    or 0
-                )
-            if watts <= 0:
-                continue
-            if self.config.get("mqtt_enabled") and self.mqtt_publisher:
-                topics = build_mqtt_topics(appliance, self.config)
-                if not self.mqtt_publisher.publish_value(
-                    topics["power_state_topic"], round(watts, 2), retain=True
-                ):
-                    logging.warning(
-                        "Failed to publish MQTT power for %s", appliance_name
-                    )
-                else:
-                    log_event(
-                        f"Power published for {appliance_name}: {round(watts,2)} W"
-                    )
-                    self.store.update_appliance_current_power(appliance_name, round(watts, 2))
-                continue
-            try:
-                self.ha_client.set_state(
-                    appliance["power_entity_id"],
-                    round(watts, 2),
-                    {
-                        "appliance": appliance_name,
-                        "source": "ha_power_classifier",
-                    },
-                )
-                log_event(f"Power set for {appliance_name}: {round(watts,2)} W")
-            except Exception as exc:
-                logging.warning("Failed to push power for %s: %s", appliance_name, exc)
-            else:
-                self.store.update_appliance_current_power(appliance_name, round(watts, 2))
+        current = self.store.get_appliance(appliance).get("current_power") or 0
+        if flank == "negative":
+            new_power = max(0.0, current - delta)
+        else:
+            new_power = current + delta
+        push_power_value(appliance, new_power, self.store, self.ha_client, self.mqtt_publisher, self.config)

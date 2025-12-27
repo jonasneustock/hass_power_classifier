@@ -30,6 +30,7 @@ Remaining ideas:
 - **Migration script**:
   - One-off tool to read from SQLite (`DataStore`) and write to Mongo (`MongoStore`), chunked for samples to avoid memory issues.
   - Idempotent option; optional wipe target flag; dry-run mode to count docs.
+  - Include a CLI entry (e.g., `python -m app.migrate_sqlite_to_mongo`) and docs on running it before switching `DB_BACKEND`.
 - **Tests**:
   - Use `mongomock` or test Mongo container to validate method parity with SQLite.
   - Benchmark critical paths: segment listing/filtering, sample window queries, label updates.
