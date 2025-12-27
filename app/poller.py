@@ -283,7 +283,11 @@ class PowerPoller:
         delta = compute_segment_delta(self.store, segment)
         if delta <= 0:
             return
-        current = self.store.get_appliance(appliance).get("current_power") or 0
+        appliance_row = self.store.get_appliance(appliance)
+        if not appliance_row:
+            log_event(f"Appliance {appliance} not found when applying power", level="warning")
+            return
+        current = appliance_row.get("current_power") or 0
         if flank == "negative":
             new_power = max(0.0, current - delta)
         else:

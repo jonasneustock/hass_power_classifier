@@ -123,9 +123,12 @@ def accept_prediction(segment_id: int):
     if not segment or not segment.get("predicted_appliance"):
         return RedirectResponse(url=f"/segments/{segment_id}", status_code=303)
     appliance = segment["predicted_appliance"]
+    appliance_row = context.store.get_appliance(appliance)
+    if not appliance_row:
+        return RedirectResponse(url=f"/segments/{segment_id}", status_code=303)
     context.store.update_segment_label(segment_id, appliance, None)
     delta = compute_segment_delta(context.store, segment)
-    current = context.store.get_appliance(appliance).get("current_power") or 0
+    current = appliance_row.get("current_power") or 0
     flank = segment.get("flank")
     if flank == "negative":
         new_power = max(0.0, current - delta)
