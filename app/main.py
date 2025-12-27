@@ -72,6 +72,13 @@ def create_app() -> FastAPI:
             else:
                 for appliance in context.store.list_appliances():
                     publish_mqtt_discovery(appliance, context.config, context.mqtt_publisher)
+                    # reset power topic to 0 on startup
+                    context.mqtt_publisher.publish_value(
+                        build_mqtt_topics(appliance, context.config)["power_state_topic"],
+                        0,
+                        retain=True,
+                    )
+                    context.store.update_appliance_current_power(appliance["name"], 0)
                 log_event("MQTT connected")
         log_event("Application started")
         context.training_manager.start_scheduler()

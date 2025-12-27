@@ -42,6 +42,7 @@ class PowerPoller:
         self.restart_attempts = 0
         self.recent_total_diffs = deque(maxlen=200)
         self.recent_sensor_diffs = {s: deque(maxlen=200) for s in self.sensors}
+        self.last_ttl_check = 0
 
     def start(self):
         if self.thread and self.thread.is_alive():
@@ -252,6 +253,11 @@ class PowerPoller:
                     log_event("Old samples pruned for retention window")
                 self.last_cleanup_ts = ts
 
+            # TTL check for appliance presence
+            if ts - self.last_ttl_check >= self.config.get("status_ttl", 300):
+                self._verify_appliances(ts)
+                self.last_ttl_check = ts
+
             time.sleep(self.config["poll_interval"])
 
     def _poll_activity_sensors(self, ts):
@@ -353,3 +359,26 @@ class PowerPoller:
             level="info",
         )
         push_power_value(appliance, new_power, self.store, self.ha_client, self.mqtt_publisher, self.config)
+
+    def _verify_appliances(self, ts):
+        sensors = self.config.get("power_sensors") or []
+        if not sensors:
+            return
+        try:
+            total = 0.0
+            for sensor in sensors:
+                state = self.ha_client.get_state(sensor)
+                total += float(state["state"])
+        except Exception as exc:
+            log_event(f"TTL check failed to read sensors: {exc}", level="warning")
+            return
+        appliances = self.store.list_appliances()
+        sum_published = sum((a.get("current_power") or 0) for a in appliances)
+        if sum_published > abs(total) + 1e-6:
+            # reset the largest contributor
+            largest = max(appliances, key=lambda a: a.get("current_power") or 0)
+            log_event(
+                f"TTL check: published sum {sum_published} exceeds total {total}. Resetting {largest['name']} to 0.",
+                level="warning",
+            )
+            push_power_value(largest["name"], 0, self.store, self.ha_client, self.mqtt_publisher, self.config)
