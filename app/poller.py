@@ -1,4 +1,5 @@
 import logging
+import os
 import threading
 import time
 from collections import deque
@@ -38,10 +39,12 @@ class PowerPoller:
         self.stop_event = threading.Event()
         self.thread = None
         self.prev_total = None
+        self.restart_attempts = 0
 
     def start(self):
         if self.thread and self.thread.is_alive():
             return
+        self.restart_attempts = 0
         self.thread = threading.Thread(target=self.run, daemon=True)
         self.thread.start()
 
@@ -51,6 +54,26 @@ class PowerPoller:
             self.thread.join(timeout=5)
 
     def run(self):
+        while not self.stop_event.is_set() and self.restart_attempts < 5:
+            try:
+                self._loop()
+                return
+            except Exception as exc:
+                self.restart_attempts += 1
+                logging.exception(
+                    "Poller crashed (attempt %s/5): %s", self.restart_attempts, exc
+                )
+                log_event(
+                    f"Poller crashed (attempt {self.restart_attempts}/5): {exc}",
+                    level="error",
+                )
+                time.sleep(1)
+        if self.restart_attempts >= 5:
+            logging.critical("Poller failed 5 times, shutting down application.")
+            log_event("Poller failed 5 times, shutting down application.", level="error")
+            os._exit(1)
+
+    def _loop(self):
         while not self.stop_event.is_set():
             ts = int(time.time())
             total_value = 0.0
@@ -91,6 +114,7 @@ class PowerPoller:
                 trigger = False
                 relative_threshold = self.config.get("relative_change_threshold")
                 absolute_threshold = self.config.get("absolute_change_threshold")
+                threshold_used = None
                 if (
                     self.config.get("adaptive_threshold_enabled")
                     and relative_threshold is not None
@@ -105,13 +129,24 @@ class PowerPoller:
                         min_rel = self.config.get("adaptive_min_relative", 0.05)
                         max_rel = self.config.get("adaptive_max_relative", 1.0)
                         relative_threshold = max(min_rel, min(max_rel, adapt))
+                        threshold_used = relative_threshold
                 if relative_threshold is not None:
                     denom = abs(prev_value) if abs(prev_value) > 1e-6 else 1.0
                     relative_change = abs(diff_value - prev_value) / denom
                     trigger = relative_change >= relative_threshold
+                    if trigger:
+                        log_event(
+                            f"Trigger detected (relative). change={round(relative_change,3)}, threshold={relative_threshold}",
+                            level="info",
+                        )
                 elif absolute_threshold is not None:
                     absolute_change = abs(diff_value - prev_value)
                     trigger = absolute_change >= absolute_threshold
+                    if trigger:
+                        log_event(
+                            f"Trigger detected (absolute). change={round(absolute_change,3)}, threshold={absolute_threshold}",
+                            level="info",
+                        )
 
                 if (
                     trigger
@@ -127,6 +162,10 @@ class PowerPoller:
                     self.sample_count - self.pending_segment["trigger_count"]
                     >= post_samples
                 ):
+                    log_event(
+                        f"Segment window filled (pre={self.config['segment_pre_samples']}, post={post_samples}); building segment",
+                        level="info",
+                    )
                     samples_list = list(self.samples_diff)
                     segment_length = (
                         self.config["segment_pre_samples"]
@@ -292,4 +331,8 @@ class PowerPoller:
             new_power = max(0.0, current - delta)
         else:
             new_power = current + delta
+        log_event(
+            f"Applying power delta for {appliance}: flank={flank}, delta={round(delta,3)}, new={round(new_power,3)}",
+            level="info",
+        )
         push_power_value(appliance, new_power, self.store, self.ha_client, self.mqtt_publisher, self.config)
