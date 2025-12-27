@@ -77,6 +77,7 @@ class DataStore:
             self.conn.commit()
             self._ensure_appliance_columns()
             self._ensure_segment_columns()
+            self._ensure_indexes()
 
     def _ensure_appliance_columns(self):
         columns = set()
@@ -113,6 +114,19 @@ class DataStore:
                 pass
         if added:
             self.conn.commit()
+
+    def _ensure_indexes(self):
+        with self.lock:
+            try:
+                self.conn.execute("CREATE INDEX IF NOT EXISTS idx_segments_start_ts ON segments(start_ts DESC)")
+                self.conn.execute("CREATE INDEX IF NOT EXISTS idx_segments_label ON segments(label_appliance)")
+                self.conn.execute("CREATE INDEX IF NOT EXISTS idx_segments_candidate ON segments(candidate)")
+                self.conn.execute("CREATE INDEX IF NOT EXISTS idx_segments_label_start ON segments(label_appliance, start_ts DESC)")
+                self.conn.execute("CREATE INDEX IF NOT EXISTS idx_samples_ts ON samples(ts DESC)")
+                self.conn.execute("CREATE INDEX IF NOT EXISTS idx_sensor_samples_ts ON sensor_samples(sensor, ts DESC)")
+                self.conn.commit()
+            except sqlite3.OperationalError:
+                pass
 
     def _ensure_segment_columns(self):
         columns = set()
@@ -527,6 +541,12 @@ class DataStore:
             )
             rows = cursor.fetchall()
         return {row["appliance"]: row["count"] for row in rows}
+
+    def delete_samples_before(self, cutoff_ts):
+        with self.lock:
+            self.conn.execute("DELETE FROM samples WHERE ts < ?", (cutoff_ts,))
+            self.conn.execute("DELETE FROM sensor_samples WHERE ts < ?", (cutoff_ts,))
+            self.conn.commit()
 
     def delete_segment(self, segment_id):
         with self.lock:

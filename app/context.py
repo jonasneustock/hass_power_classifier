@@ -46,6 +46,9 @@ training_manager = TrainingManager(store, classifier, regression_service, config
 poller = PowerPoller(
     store, ha_client, classifier, regression_service, config, mqtt_publisher
 )
+# in-memory caches for dashboard
+recent_total_diffs = deque(maxlen=200)
+recent_sensor_diffs = {}
 
 templates = Jinja2Templates(directory=str(base_dir / "templates"))
 templates.env.filters["format_ts"] = format_ts

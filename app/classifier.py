@@ -1,3 +1,4 @@
+import logging
 import threading
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from sklearn.metrics import (
 from sklearn.model_selection import train_test_split
 
 from app.utils import samples_to_diffs
+from app.logging_utils import log_event
 
 
 class ClassifierService:
@@ -128,6 +130,10 @@ class ClassifierService:
             self.classes = list(model.classes_)
             self.last_metrics = metrics
             self._save()
+        log_event(
+            f"Classifier trained: samples={metrics['samples']} classes={metrics['classes']} accuracy={metrics.get('accuracy')}",
+            level="info",
+        )
         return metrics
 
     def predict(self, segment):
@@ -264,6 +270,10 @@ class RegressionService:
                 self.last_metrics = {"mse": float(mse), "mape": float(mape)}
             else:
                 self.last_metrics = None
+        log_event(
+            f"Regression trained for appliances={len(models)} mse={self.last_metrics.get('mse') if self.last_metrics else 'n/a'}",
+            level="info",
+        )
 
     def predict(self, appliance, seconds_since_start):
         with self.lock:

@@ -12,22 +12,8 @@ def dashboard(request: Request):
     latest_per_sensor = context.store.get_latest_sensor_samples()
     appliances = context.store.list_appliances()
     segments = context.store.list_segments(limit=10, unlabeled_only=True)
-    recent_samples_raw = context.store.get_recent_samples(limit=200)
-    recent_samples = []
-    for idx in range(1, len(recent_samples_raw)):
-        prev = recent_samples_raw[idx - 1]
-        curr = recent_samples_raw[idx]
-        recent_samples.append({"ts": curr["ts"], "value": curr["value"] - prev["value"]})
-
-    recent_by_sensor = {}
-    for sensor in context.config["power_sensors"]:
-        raw = context.store.get_recent_sensor_samples(sensor, limit=200)
-        diffs = []
-        for idx in range(1, len(raw)):
-            prev = raw[idx - 1]
-            curr = raw[idx]
-            diffs.append({"ts": curr["ts"], "value": curr["value"] - prev["value"]})
-        recent_by_sensor[sensor] = diffs
+    recent_samples = list(getattr(context.poller, "recent_total_diffs", []))
+    recent_by_sensor = getattr(context.poller, "recent_sensor_diffs", {})
     detection_events = [
         {
             "ts": seg["start_ts"],
@@ -57,4 +43,3 @@ def dashboard(request: Request):
         },
         headers={"X-Partial": request.headers.get("X-Partial", "")},
     )
-

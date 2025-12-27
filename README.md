@@ -38,6 +38,9 @@ All configuration is handled via environment variables in `.env`:
 - `SEGMENT_POST_SAMPLES`: Samples to include after a detected change
 - `MIN_LABELS_PER_APPLIANCE`: Minimum labels per appliance before training
 - `STATUS_TTL_SECONDS`: Time to keep a running status valid
+- `UNLABELED_TTL_SECONDS`: Age after which unlabeled segments are pruned
+- `CLEANUP_INTERVAL_SECONDS`: Cleanup loop interval
+- `SAMPLE_RETENTION_SECONDS`: Retain raw samples for this many seconds (0 disables sample pruning)
 - `MQTT_ENABLED`: Enable MQTT output for Home Assistant discovery
 - `MQTT_HOST`: MQTT broker hostname
 - `MQTT_PORT`: MQTT broker port

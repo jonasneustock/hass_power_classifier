@@ -42,6 +42,7 @@ def load_config():
         "status_ttl": int(os.getenv("STATUS_TTL_SECONDS", "300")),
         "unlabeled_ttl": int(os.getenv("UNLABELED_TTL_SECONDS", "7200")),
         "cleanup_interval": int(os.getenv("CLEANUP_INTERVAL_SECONDS", "300")),
+        "sample_retention": int(os.getenv("SAMPLE_RETENTION_SECONDS", "0")),
         "retrain_interval": int(os.getenv("RETRAIN_INTERVAL_SECONDS", "0")),
         "app_title": os.getenv("APP_TITLE", "HA Power Classifier"),
         "data_dir": os.getenv("DATA_DIR", "/data"),

@@ -40,6 +40,8 @@ class PowerPoller:
         self.thread = None
         self.prev_total = None
         self.restart_attempts = 0
+        self.recent_total_diffs = deque(maxlen=200)
+        self.recent_sensor_diffs = {s: deque(maxlen=200) for s in self.sensors}
 
     def start(self):
         if self.thread and self.thread.is_alive():
@@ -108,6 +110,12 @@ class PowerPoller:
             self.prev_total = total_value
             self.samples_diff.append((ts, diff_value))
             self.sample_count += 1
+            self.recent_total_diffs.append({"ts": ts, "value": diff_value})
+            for sensor in self.sensors:
+                samples = self.store.get_recent_sensor_samples(sensor, limit=2)
+                if len(samples) == 2:
+                    dv = samples[1]["value"] - samples[0]["value"]
+                    self.recent_sensor_diffs[sensor].append({"ts": samples[1]["ts"], "value": dv})
 
             if len(self.samples_diff) >= 2 and self.pending_segment is None:
                 prev_value = self.samples_diff[-2][1]
@@ -233,6 +241,10 @@ class PowerPoller:
                         "Deleted %s unlabeled segments older than %s", deleted, cutoff
                     )
                     log_event(f"Cleanup removed {deleted} stale segments")
+                retention = self.config.get("sample_retention", 0)
+                if retention and retention > 0:
+                    self.store.delete_samples_before(ts - retention)
+                    log_event("Old samples pruned for retention window")
                 self.last_cleanup_ts = ts
 
             time.sleep(self.config["poll_interval"])
