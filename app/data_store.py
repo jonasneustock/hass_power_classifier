@@ -8,7 +8,7 @@ class DataStore:
         self.db_path = db_path
         self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self._init_db()
 
     def _init_db(self):
@@ -116,17 +116,16 @@ class DataStore:
             self.conn.commit()
 
     def _ensure_indexes(self):
-        with self.lock:
-            try:
-                self.conn.execute("CREATE INDEX IF NOT EXISTS idx_segments_start_ts ON segments(start_ts DESC)")
-                self.conn.execute("CREATE INDEX IF NOT EXISTS idx_segments_label ON segments(label_appliance)")
-                self.conn.execute("CREATE INDEX IF NOT EXISTS idx_segments_candidate ON segments(candidate)")
-                self.conn.execute("CREATE INDEX IF NOT EXISTS idx_segments_label_start ON segments(label_appliance, start_ts DESC)")
-                self.conn.execute("CREATE INDEX IF NOT EXISTS idx_samples_ts ON samples(ts DESC)")
-                self.conn.execute("CREATE INDEX IF NOT EXISTS idx_sensor_samples_ts ON sensor_samples(sensor, ts DESC)")
-                self.conn.commit()
-            except sqlite3.OperationalError:
-                pass
+        try:
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_segments_start_ts ON segments(start_ts DESC)")
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_segments_label ON segments(label_appliance)")
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_segments_candidate ON segments(candidate)")
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_segments_label_start ON segments(label_appliance, start_ts DESC)")
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_samples_ts ON samples(ts DESC)")
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_sensor_samples_ts ON sensor_samples(sensor, ts DESC)")
+            self.conn.commit()
+        except sqlite3.OperationalError:
+            pass
 
     def _ensure_segment_columns(self):
         columns = set()
