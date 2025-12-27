@@ -56,6 +56,8 @@ All configuration is handled via environment variables in `.env`:
 - `app/routers/`: Feature routers (`dashboard`, `segments`, `appliances`, `models_page`, `logs_page`, `api`).
 - `app/poller.py`: Sensor polling, adaptive thresholds, segmentation, activity/learning hints, power publishing.
 - `app/training.py`: Training manager, metrics history, scheduler, power stats calculation.
+
+See `docs.md` for a deeper walkthrough of modules and functions.
 ## Model training
 - Classifier: RandomForest on diff-based segment features; uses an 80/20 train/test split when there are at least 5 samples and more than 1 class, otherwise trains on all data. Classes with fewer than 5 labeled segments are skipped to avoid underfitting. Metrics recorded: accuracy, precision, recall, F1, sample and class counts.
 - Regression: per-appliance LinearRegression on diff samples vs. time since start; uses an 80/20 split when there are at least 10 samples, otherwise trains on all data. Metrics recorded: MSE and MAPE.
