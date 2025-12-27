@@ -108,6 +108,26 @@ def push_power_value(appliance, watts, store, ha_client, mqtt_publisher, config)
     if not appliance_row:
         return
     watts = max(0.0, float(watts))
+    latest_total = store.get_latest_sample()
+    limit = abs(latest_total["value"]) if latest_total and "value" in latest_total else None
+
+    appliances = store.list_appliances()
+    current_total = sum((a.get("current_power") or 0) for a in appliances)
+    proposed_total = current_total - (appliance_row.get("current_power") or 0) + watts
+    if limit is not None and proposed_total > limit:
+        # identify largest contributor in proposed state
+        proposed_powers = {
+            a["name"]: (appliance == a["name"] and watts) or (a.get("current_power") or 0)
+            for a in appliances
+        }
+        largest = max(proposed_powers.items(), key=lambda kv: kv[1] if kv[1] is not None else 0)
+        if largest[0] == appliance:
+            log_event(
+                f"Skip publishing for {appliance}: proposed total {round(proposed_total,2)} exceeds limit {round(limit,2)}",
+                level="warning",
+            )
+            return
+
     store.update_appliance_current_power(appliance, watts)
     if config.get("mqtt_enabled") and mqtt_publisher:
         topics = build_mqtt_topics(appliance_row, config)
