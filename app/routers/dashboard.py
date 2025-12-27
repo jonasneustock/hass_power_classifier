@@ -15,7 +15,8 @@ def dashboard(request: Request):
     appliances = context.store.list_appliances()
     segments = context.store.list_segments(limit=10, unlabeled_only=True)
     recent_samples = list(getattr(context.poller, "recent_total_diffs", []))
-    recent_by_sensor = getattr(context.poller, "recent_sensor_diffs", {})
+    sensor_diffs = getattr(context.poller, "recent_sensor_diffs", {})
+    recent_by_sensor = {k: list(v) for k, v in sensor_diffs.items()}
     detection_events = [
         {
             "ts": seg["start_ts"],
