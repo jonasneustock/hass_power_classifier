@@ -16,15 +16,24 @@ def segments_page(
     candidate: int = 1,
     unlabeled: int = 1,
     min_change: float = 0.0,
+    page: int = 1,
+    limit: int = 50,
 ):
+    page = max(1, page)
+    limit = max(1, min(200, limit))
+    offset = (page - 1) * limit
     log_event(f"Segments page viewed (candidate={candidate}, unlabeled={unlabeled}, min_change={min_change})")
     segments = context.store.list_segments(
-        limit=200,
+        limit=limit + 1,
         unlabeled_only=bool(unlabeled),
         candidate_only=bool(candidate),
+        offset=offset,
     )
     if min_change > 0:
         segments = [s for s in segments if s["change_score"] >= min_change]
+    has_next = len(segments) > limit
+    segments = segments[:limit]
+    has_prev = page > 1
     return context.templates.TemplateResponse(
         "segments.html",
         {
@@ -33,6 +42,10 @@ def segments_page(
             "candidate": candidate,
             "unlabeled": unlabeled,
             "min_change": min_change,
+            "page": page,
+            "limit": limit,
+            "has_next": has_next,
+            "has_prev": has_prev,
             "config": context.config,
         },
     )

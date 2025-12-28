@@ -284,7 +284,7 @@ class DataStore:
             inserted += 1
         return inserted
 
-    def list_segments(self, limit=200, unlabeled_only=False, candidate_only=False):
+    def list_segments(self, limit=200, unlabeled_only=False, candidate_only=False, offset=0):
         query = "SELECT * FROM segments"
         conditions = []
         params = []
@@ -294,12 +294,27 @@ class DataStore:
             conditions.append("candidate = 1")
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
-        query += " ORDER BY start_ts DESC LIMIT ?"
-        params.append(limit)
+        query += " ORDER BY start_ts DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
         with self.lock:
             cursor = self.conn.execute(query, params)
             rows = cursor.fetchall()
         return [dict(row) for row in rows]
+
+    def count_segments(self, unlabeled_only=False, candidate_only=False):
+        query = "SELECT COUNT(*) as cnt FROM segments"
+        conditions = []
+        params = []
+        if unlabeled_only:
+            conditions.append("label_appliance IS NULL")
+        if candidate_only:
+            conditions.append("candidate = 1")
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        with self.lock:
+            cursor = self.conn.execute(query, params)
+            row = cursor.fetchone()
+        return row["cnt"] if row else 0
 
     def get_latest_unlabeled_segment(self):
         with self.lock:
