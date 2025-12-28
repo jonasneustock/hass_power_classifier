@@ -8,6 +8,9 @@
     <form method="post" action="/models/retrain">
       <button class="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800" type="submit">Retrain</button>
     </form>
+    <form method="post" action="/models/clear">
+      <button class="inline-flex items-center rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50" type="submit">Clear models</button>
+    </form>
   </div>
   {% if training %}
   <div class="mt-4 grid grid-cols-2 gap-4 text-sm">

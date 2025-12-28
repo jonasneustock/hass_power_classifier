@@ -84,9 +84,12 @@ class PowerPoller:
             ts = int(time.time())
             total_value = 0.0
             read_success = 0
+            states = self.ha_client.get_states_parallel(self.sensors)
             for sensor in self.sensors:
+                state = states.get(sensor)
+                if not state:
+                    continue
                 try:
-                    state = self.ha_client.get_state(sensor)
                     value = float(state["state"])
                     self.store.add_sensor_sample(ts, sensor, value)
                     total_value += value
@@ -98,9 +101,9 @@ class PowerPoller:
                         self.recent_sensor_diffs[sensor].append({"ts": ts, "value": dv})
                     self.prev_sensor_values[sensor] = value
                 except Exception as exc:
-                    logging.warning("Failed to read HA sensor %s: %s", sensor, exc)
+                    logging.warning("Failed to parse HA sensor %s: %s", sensor, exc)
                     log_event(
-                        f"Failed to read HA sensor {sensor}: {exc}",
+                        f"Failed to parse HA sensor {sensor}: {exc}",
                         level="warning",
                     )
 

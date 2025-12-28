@@ -2,6 +2,7 @@ fastapi
 uvicorn
 jinja2
 requests
+httpx
 python-dotenv
 numpy
 scikit-learn

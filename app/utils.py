@@ -115,18 +115,30 @@ def push_power_value(appliance, watts, store, ha_client, mqtt_publisher, config)
     current_total = sum((a.get("current_power") or 0) for a in appliances)
     proposed_total = current_total - (appliance_row.get("current_power") or 0) + watts
     if limit is not None and proposed_total > limit:
-        # identify largest contributor in proposed state
         proposed_powers = {
             a["name"]: (appliance == a["name"] and watts) or (a.get("current_power") or 0)
             for a in appliances
         }
+        # reset the largest contributor to keep published sum <= limit
         largest = max(proposed_powers.items(), key=lambda kv: kv[1] if kv[1] is not None else 0)
-        if largest[0] == appliance:
-            log_event(
-                f"Skip publishing for {appliance}: proposed total {round(proposed_total,2)} exceeds limit {round(limit,2)}",
-                level="warning",
-            )
-            return
+        log_event(
+            f"Published sum would exceed measured total (proposed {round(proposed_total,2)} > limit {round(limit,2)}). Resetting {largest[0]} to 0.",
+            level="warning",
+        )
+        store.update_appliance_current_power(largest[0], 0)
+        if config.get("mqtt_enabled") and mqtt_publisher:
+            topics = build_mqtt_topics(store.get_appliance(largest[0]), config)
+            mqtt_publisher.publish_value(topics["power_state_topic"], 0, retain=True)
+        else:
+            try:
+                ha_client.set_state(
+                    store.get_appliance(largest[0])["power_entity_id"],
+                    0,
+                    {"appliance": largest[0], "source": "ha_power_classifier"},
+                )
+            except Exception:
+                pass
+        return
 
     store.update_appliance_current_power(appliance, watts)
     if config.get("mqtt_enabled") and mqtt_publisher:

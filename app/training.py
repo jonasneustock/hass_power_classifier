@@ -2,6 +2,7 @@ import json
 import threading
 import time
 from pathlib import Path
+import random
 
 import numpy as np
 
@@ -149,6 +150,10 @@ class TrainingManager:
                 log_event("Training skipped: no labeled segments", level="warning")
                 self.training_state["last_finished"] = int(time.time())
                 return
+            max_segs = self.config.get("max_train_segments", 1000)
+            if len(labeled_segments) > max_segs:
+                labeled_segments = random.sample(labeled_segments, max_segs)
+                log_event(f"Training: downsampled to {max_segs} segments")
             signature = {
                 "counts": counts,
                 "seg_ids": [seg["id"] for seg in labeled_segments],
@@ -157,6 +162,7 @@ class TrainingManager:
                 log_event("Training skipped: no new labels since last run", level="info")
                 self.training_state["last_finished"] = int(time.time())
                 return
+            t0 = time.time()
             clf_metrics = self.classifier.train(
                 labeled_segments,
                 eligible_appliances=eligible,
@@ -182,6 +188,8 @@ class TrainingManager:
                 "ts": self.training_state["last_finished"],
                 "classifier": clf_metrics,
                 "regression": reg_metrics,
+                "duration_seconds": round(time.time() - t0, 2),
+                "segments_used": len(labeled_segments),
             }
             self.metrics_history = self._save_metrics_entry(metrics_entry)
             self.last_training_signature = signature

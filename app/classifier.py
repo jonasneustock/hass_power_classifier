@@ -42,6 +42,17 @@ class ClassifierService:
         }
         joblib.dump(data, self.model_path)
 
+    def clear(self):
+        with self.lock:
+            self.model = None
+            self.classes = None
+            self.last_metrics = None
+            if self.model_path.exists():
+                try:
+                    self.model_path.unlink()
+                except Exception:
+                    pass
+
     def train(self, segments, eligible_appliances=None, tune=False):
         if not segments:
             return None
@@ -289,3 +300,8 @@ class RegressionService:
             return None
         pred = model.predict(np.array([[seconds_since_start]]))[0]
         return max(0.0, float(pred))
+
+    def clear(self):
+        with self.lock:
+            self.models = {}
+            self.last_metrics = None

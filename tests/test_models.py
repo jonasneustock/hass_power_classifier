@@ -115,3 +115,13 @@ def test_classifier_predict_returns_tuple(tmp_path):
     }
     appliance = clf.predict(segment)
     assert isinstance(appliance, str)
+
+
+def test_classifier_clear(tmp_path):
+    clf = ClassifierService(str(tmp_path / "model.pkl"))
+    segs = _segments()
+    clf.train(segs, eligible_appliances={"toaster"})
+    assert clf.model is not None
+    clf.clear()
+    assert clf.model is None
+    assert clf.last_metrics is None

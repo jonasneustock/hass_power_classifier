@@ -39,3 +39,11 @@ def retrain_models():
     context.training_manager.trigger_training()
     log_event("Manual retrain requested")
     return RedirectResponse(url="/models", status_code=303)
+
+
+@router.post("/clear")
+def clear_models():
+    context.classifier.clear()
+    context.regression_service.clear()
+    log_event("Models cleared")
+    return RedirectResponse(url="/models", status_code=303)

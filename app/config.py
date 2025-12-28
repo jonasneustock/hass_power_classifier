@@ -27,6 +27,10 @@ def load_config():
     if log_level not in valid_levels:
         log_level = "INFO"
 
+    max_train_segments = int(os.getenv("MAX_TRAIN_SEGMENTS", "1000"))
+    if max_train_segments <= 0:
+        max_train_segments = 1000
+
     return {
         "ha_base_url": os.getenv("HA_BASE_URL", "http://homeassistant.local:8123"),
         "ha_token": os.getenv("HA_TOKEN", ""),
@@ -51,6 +55,7 @@ def load_config():
         "retrain_interval": int(os.getenv("RETRAIN_INTERVAL_SECONDS", "0")),
         "api_token": os.getenv("API_TOKEN", ""),
         "log_level": log_level,
+        "max_train_segments": max_train_segments,
         "app_title": os.getenv("APP_TITLE", "HA Power Classifier"),
         "data_dir": os.getenv("DATA_DIR", "/data"),
         "mqtt_enabled": os.getenv("MQTT_ENABLED", "false").lower()
