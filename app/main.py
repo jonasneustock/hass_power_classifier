@@ -1,5 +1,6 @@
 import logging
 import time
+from typing import Callable
 
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
@@ -54,13 +55,16 @@ def check_ha_connection():
 
 
 def create_app() -> FastAPI:
+    logging.getLogger().setLevel(
+        getattr(logging, context.config.get("log_level", "INFO"), logging.INFO)
+    )
     app = FastAPI(title=context.config["app_title"])
     app.mount(
         "/static", StaticFiles(directory=str(context.base_dir / "static")), name="static"
     )
 
     @app.middleware("http")
-    async def timing_middleware(request, call_next):
+    async def timing_middleware(request, call_next: Callable):
         start = time.time()
         response = await call_next(request)
         duration_ms = (time.time() - start) * 1000
@@ -69,6 +73,16 @@ def create_app() -> FastAPI:
         if not path.startswith("/static"):
             log_event(f"Request {path} completed in {duration_ms:.1f} ms", level="info")
         return response
+
+    @app.middleware("http")
+    async def api_auth_middleware(request, call_next: Callable):
+        if request.url.path.startswith("/api"):
+            token = context.config.get("api_token")
+            if token:
+                provided = request.headers.get("X-API-Token")
+                if provided != token:
+                    return {"detail": "Unauthorized"}
+        return await call_next(request)
 
     @app.on_event("startup")
     def on_startup():

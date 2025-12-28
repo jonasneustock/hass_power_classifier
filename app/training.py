@@ -26,6 +26,7 @@ class TrainingManager:
         self.metrics_history = self._load_metrics_history()
         self._scheduler_thread = None
         self._stop_scheduler = threading.Event()
+        self.last_training_signature = None
 
     def ensure_base_appliance(self):
         base = self.store.get_appliance("base")
@@ -148,6 +149,14 @@ class TrainingManager:
                 log_event("Training skipped: no labeled segments", level="warning")
                 self.training_state["last_finished"] = int(time.time())
                 return
+            signature = {
+                "counts": counts,
+                "seg_ids": [seg["id"] for seg in labeled_segments],
+            }
+            if signature == self.last_training_signature:
+                log_event("Training skipped: no new labels since last run", level="info")
+                self.training_state["last_finished"] = int(time.time())
+                return
             clf_metrics = self.classifier.train(
                 labeled_segments,
                 eligible_appliances=eligible,
@@ -175,7 +184,7 @@ class TrainingManager:
                 "regression": reg_metrics,
             }
             self.metrics_history = self._save_metrics_entry(metrics_entry)
-            log_event("Training finished")
+            self.last_training_signature = signature
         except Exception as exc:
             self.training_state["error"] = str(exc)
             self.training_state["last_finished"] = int(time.time())

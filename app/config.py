@@ -22,6 +22,11 @@ def load_config():
         in ("1", "true", "yes", "on")
     )
 
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+    if log_level not in valid_levels:
+        log_level = "INFO"
+
     return {
         "ha_base_url": os.getenv("HA_BASE_URL", "http://homeassistant.local:8123"),
         "ha_token": os.getenv("HA_TOKEN", ""),
@@ -44,6 +49,8 @@ def load_config():
         "cleanup_interval": int(os.getenv("CLEANUP_INTERVAL_SECONDS", "300")),
         "sample_retention": int(os.getenv("SAMPLE_RETENTION_SECONDS", "0")),
         "retrain_interval": int(os.getenv("RETRAIN_INTERVAL_SECONDS", "0")),
+        "api_token": os.getenv("API_TOKEN", ""),
+        "log_level": log_level,
         "app_title": os.getenv("APP_TITLE", "HA Power Classifier"),
         "data_dir": os.getenv("DATA_DIR", "/data"),
         "mqtt_enabled": os.getenv("MQTT_ENABLED", "false").lower()

@@ -41,6 +41,8 @@ All configuration is handled via environment variables in `.env`:
 - `UNLABELED_TTL_SECONDS`: Age after which unlabeled segments are pruned
 - `CLEANUP_INTERVAL_SECONDS`: Cleanup loop interval
 - `SAMPLE_RETENTION_SECONDS`: Retain raw samples for this many seconds (0 disables sample pruning)
+- `API_TOKEN`: Optional token required for `/api/*` endpoints
+- `LOG_LEVEL`: Logging level (`DEBUG`/`INFO`/`WARNING`/`ERROR`/`CRITICAL`)
 - `MQTT_ENABLED`: Enable MQTT output for Home Assistant discovery
 - `MQTT_HOST`: MQTT broker hostname
 - `MQTT_PORT`: MQTT broker port
