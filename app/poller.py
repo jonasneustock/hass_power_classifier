@@ -268,8 +268,6 @@ class PowerPoller:
                 self._apply_power_for_segment(segment_id, segment, appliance, flank)
         self.recent_segments_for_inference.clear()
 
-            time.sleep(self.config["poll_interval"])
-
     def _poll_activity_sensors(self, ts):
         appliances = self.store.list_appliances()
         for appliance in appliances:
