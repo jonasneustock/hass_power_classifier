@@ -18,7 +18,7 @@ def dashboard(request: Request):
     sensor_diffs = getattr(context.poller, "recent_sensor_diffs", {})
     recent_by_sensor = {k: list(v) for k, v in sensor_diffs.items()}
     detection_events = []
-    for seg in context.store.list_detection_events(limit=50):
+    for seg in context.store.list_detection_events(limit=30):
         event_phase = seg.get("predicted_phase") or seg.get("label_phase")
         if event_phase not in ("start", "stop", None):
             continue

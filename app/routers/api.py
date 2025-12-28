@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app import context
+from app.logging_utils import log_event
 
 router = APIRouter(prefix="/api")
 
@@ -37,3 +38,23 @@ def api_segments(limit: int = 100):
 def api_appliances():
     log_event("API appliances requested")
     return {"appliances": context.store.list_appliances()}
+
+
+@router.post("/cleanup")
+def api_cleanup():
+    ts = int(time.time())
+    deleted_segments = context.store.delete_unlabeled_before(
+        ts - context.config.get("unlabeled_ttl", 7200)
+    )
+    pruned_samples = 0
+    retention = context.config.get("sample_retention", 0)
+    if retention and retention > 0:
+        context.store.delete_samples_before(ts - retention)
+        pruned_samples = 1
+    log_event(
+        f"API cleanup triggered: removed {deleted_segments} unlabeled segments; samples pruned={pruned_samples}"
+    )
+    return {
+        "deleted_unlabeled_segments": deleted_segments,
+        "samples_pruned": bool(pruned_samples),
+    }

@@ -43,6 +43,9 @@ class PowerPoller:
         self.recent_total_diffs = deque(maxlen=100)
         self.recent_sensor_diffs = {s: deque(maxlen=100) for s in self.sensors}
         self.last_ttl_check = 0
+        self.prev_sensor_values = {}
+        self.last_inference_ts = 0
+        self.recent_segments_for_inference = deque(maxlen=5)
 
     def start(self):
         if self.thread and self.thread.is_alive():
@@ -88,6 +91,12 @@ class PowerPoller:
                     self.store.add_sensor_sample(ts, sensor, value)
                     total_value += value
                     read_success += 1
+
+                    prev_sensor = self.prev_sensor_values.get(sensor)
+                    if prev_sensor is not None:
+                        dv = value - prev_sensor
+                        self.recent_sensor_diffs[sensor].append({"ts": ts, "value": dv})
+                    self.prev_sensor_values[sensor] = value
                 except Exception as exc:
                     logging.warning("Failed to read HA sensor %s: %s", sensor, exc)
                     log_event(
@@ -112,16 +121,7 @@ class PowerPoller:
             self.prev_total = total_value
             self.samples_diff.append((ts, diff_value))
             self.sample_count += 1
-            log_event(
-                f"Diff recorded ts={ts} value={round(diff_value,3)} sample_count={self.sample_count}",
-                level="info",
-            )
             self.recent_total_diffs.append({"ts": ts, "value": diff_value})
-            for sensor in self.sensors:
-                samples = self.store.get_recent_sensor_samples(sensor, limit=2)
-                if len(samples) == 2:
-                    dv = samples[1]["value"] - samples[0]["value"]
-                    self.recent_sensor_diffs[sensor].append({"ts": samples[1]["ts"], "value": dv})
 
             if len(self.samples_diff) >= 2 and self.pending_segment is None:
                 prev_value = self.samples_diff[-2][1]
@@ -215,6 +215,7 @@ class PowerPoller:
                             log_event(
                                 f"Segment #{segment_id} created change={round(features['change_score']*100,1)}%"
                             )
+                            self.recent_segments_for_inference.append((segment_id, segment, flank))
                             learn_hint = self._learning_hint(segment_samples[-1][0])
                             if learn_hint:
                                 self.store.update_segment_label(segment_id, learn_hint["appliance"], None)
@@ -229,14 +230,6 @@ class PowerPoller:
                                 log_event(
                                     f"Activity hint applied to segment #{segment_id}: {hint['appliance']}"
                                 )
-                            prediction = self.classifier.predict(segment)
-                            if prediction:
-                                appliance = prediction
-                                self.store.update_segment_prediction(segment_id, appliance)
-                                log_event(
-                                    f"Prediction for segment #{segment_id}: {appliance}"
-                                )
-                                self._apply_power_for_segment(segment_id, segment, appliance, flank)
                     self.pending_segment = None
 
             if ts - self.last_cleanup_ts >= self.config["cleanup_interval"]:
@@ -257,6 +250,23 @@ class PowerPoller:
             if ts - self.last_ttl_check >= self.config.get("status_ttl", 300):
                 self._verify_appliances(ts)
                 self.last_ttl_check = ts
+
+            # batched inference every 5s on last 5 segments
+            if ts - self.last_inference_ts >= 5 and self.recent_segments_for_inference:
+                self._run_batched_inference()
+                self.last_inference_ts = ts
+
+    def _run_batched_inference(self):
+        for segment_id, segment, flank in list(self.recent_segments_for_inference):
+            prediction = self.classifier.predict(segment)
+            if prediction:
+                appliance = prediction
+                self.store.update_segment_prediction(segment_id, appliance)
+                log_event(
+                    f"Prediction for segment #{segment_id}: {appliance}"
+                )
+                self._apply_power_for_segment(segment_id, segment, appliance, flank)
+        self.recent_segments_for_inference.clear()
 
             time.sleep(self.config["poll_interval"])
 
