@@ -40,8 +40,8 @@ class PowerPoller:
         self.thread = None
         self.prev_total = None
         self.restart_attempts = 0
-        self.recent_total_diffs = deque(maxlen=200)
-        self.recent_sensor_diffs = {s: deque(maxlen=200) for s in self.sensors}
+        self.recent_total_diffs = deque(maxlen=100)
+        self.recent_sensor_diffs = {s: deque(maxlen=100) for s in self.sensors}
         self.last_ttl_check = 0
 
     def start(self):

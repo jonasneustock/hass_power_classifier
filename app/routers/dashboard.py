@@ -17,15 +17,18 @@ def dashboard(request: Request):
     recent_samples = list(getattr(context.poller, "recent_total_diffs", []))
     sensor_diffs = getattr(context.poller, "recent_sensor_diffs", {})
     recent_by_sensor = {k: list(v) for k, v in sensor_diffs.items()}
-    detection_events = [
-        {
-            "ts": seg["start_ts"],
-            "appliance": seg.get("predicted_appliance") or seg.get("label_appliance"),
-            "phase": seg.get("predicted_phase") or seg.get("label_phase"),
-        }
-        for seg in context.store.list_segments(limit=100, unlabeled_only=False)
-        if (seg.get("predicted_phase") or seg.get("label_phase")) in ("start", "stop")
-    ]
+    detection_events = []
+    for seg in context.store.list_detection_events(limit=50):
+        event_phase = seg.get("predicted_phase") or seg.get("label_phase")
+        if event_phase not in ("start", "stop", None):
+            continue
+        detection_events.append(
+            {
+                "ts": seg["start_ts"],
+                "appliance": seg.get("predicted_appliance") or seg.get("label_appliance"),
+                "phase": event_phase,
+            }
+        )
     activity_events = list(getattr(context.poller, "activity_events", []))
     training = context.classifier.last_metrics
     return context.templates.TemplateResponse(

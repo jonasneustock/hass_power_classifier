@@ -301,6 +301,21 @@ class DataStore:
             rows = cursor.fetchall()
         return [dict(row) for row in rows]
 
+    def list_detection_events(self, limit=50):
+        with self.lock:
+            cursor = self.conn.execute(
+                """
+                SELECT start_ts, predicted_appliance, predicted_phase, label_appliance, label_phase
+                FROM segments
+                WHERE (predicted_appliance IS NOT NULL OR label_appliance IS NOT NULL)
+                ORDER BY start_ts DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
     def count_segments(self, unlabeled_only=False, candidate_only=False):
         query = "SELECT COUNT(*) as cnt FROM segments"
         conditions = []
