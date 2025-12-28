@@ -1,4 +1,5 @@
 import logging
+import time
 
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
@@ -57,6 +58,17 @@ def create_app() -> FastAPI:
     app.mount(
         "/static", StaticFiles(directory=str(context.base_dir / "static")), name="static"
     )
+
+    @app.middleware("http")
+    async def timing_middleware(request, call_next):
+        start = time.time()
+        response = await call_next(request)
+        duration_ms = (time.time() - start) * 1000
+        path = request.url.path
+        # avoid spamming for static files
+        if not path.startswith("/static"):
+            log_event(f"Request {path} completed in {duration_ms:.1f} ms", level="info")
+        return response
 
     @app.on_event("startup")
     def on_startup():
