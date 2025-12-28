@@ -13,7 +13,7 @@ def dashboard(request: Request):
     latest_sample = context.store.get_latest_sample()
     latest_per_sensor = context.store.get_latest_sensor_samples()
     appliances = context.store.list_appliances()
-    segments = context.store.list_segments(limit=10, unlabeled_only=True)
+    segments = context.store.list_segments(limit=5, unlabeled_only=True)
     recent_samples = list(getattr(context.poller, "recent_total_diffs", []))
     sensor_diffs = getattr(context.poller, "recent_sensor_diffs", {})
     recent_by_sensor = {k: list(v) for k, v in sensor_diffs.items()}
