@@ -20,6 +20,8 @@ docker compose up --build
 
 3. Open the UI at `http://localhost:8000`.
 
+The Docker image installs `libgomp1` to support PyCaret’s model training runtime.
+
 ## Configuration
 All configuration is handled via environment variables in `.env`:
 

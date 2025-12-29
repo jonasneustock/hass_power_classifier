@@ -1,4 +1,5 @@
 import logging
+import sys
 from collections import deque
 from datetime import datetime
 from pathlib import Path
@@ -23,7 +24,7 @@ def format_ts(ts):
 
 
 config = load_config()
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 
 base_dir = Path(__file__).resolve().parent
 data_dir = Path(config["data_dir"])

@@ -1,5 +1,6 @@
 import logging
 import threading
+from inspect import signature
 from pathlib import Path
 
 import joblib
@@ -20,6 +21,11 @@ from sklearn.model_selection import train_test_split
 
 from app.utils import samples_to_diffs
 from app.logging_utils import log_event
+
+
+def _filtered_kwargs(func, **kwargs):
+    params = signature(func).parameters
+    return {key: value for key, value in kwargs.items() if key in params}
 
 
 class ClassifierService:
@@ -118,7 +124,8 @@ class ClassifierService:
                 ],
             )
             df["label"] = y
-            py_setup(
+            setup_kwargs = _filtered_kwargs(
+                py_setup,
                 data=df,
                 target="label",
                 session_id=42,
@@ -129,6 +136,7 @@ class ClassifierService:
                 log_experiment=False,
                 html=False,
             )
+            py_setup(**setup_kwargs)
             best = compare_models(turbo=True)
             model_candidate = finalize_model(best)
             # evaluate on full data quickly
@@ -318,7 +326,8 @@ class RegressionService:
                 if pd is None or df is None:
                     raise ImportError("pandas not installed")
 
-                py_setup(
+                setup_kwargs = _filtered_kwargs(
+                    py_setup,
                     data=df,
                     target="y",
                     session_id=42,
@@ -329,6 +338,7 @@ class RegressionService:
                     log_experiment=False,
                     html=False,
                 )
+                py_setup(**setup_kwargs)
                 best = compare_models(turbo=True)
                 model_candidate = finalize_model(best)
                 preds = model_candidate.predict(df[["t"]])
