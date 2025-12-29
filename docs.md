@@ -6,6 +6,7 @@
 - Data persisted in SQLite (current) with models saved via joblib; MQTT or HA REST used for publishing appliance power.
 - Segmentation and training operate on power **diffs**; labels are appliance-only (no phases).
 - Power deltas: positive flank adds `max(diff)-min(diff)` to appliance current power; negative flank subtracts (clamped ≥0).
+- Container runtime installs `libgomp1` so PyCaret models can load their OpenMP runtime.
 
 ```mermaid
 classDiagram
