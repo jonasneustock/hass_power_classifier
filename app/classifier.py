@@ -227,6 +227,10 @@ class ClassifierService:
                 ]
             )
             prediction = self.model.predict(features)[0]
+            log_event(
+                f"Classifier prediction: {prediction} for segment features mean={segment['mean']}, change={segment['change_score']}",
+                level="info",
+            )
         return prediction
 
     def top_predictions(self, segment, top_n=3):
@@ -412,6 +416,7 @@ class RegressionService:
         else:
             features = np.array([[seconds_since_start]])
         pred = model.predict(features)[0]
+        log_event(f"Regression prediction for {appliance} at t={seconds_since_start}s -> {pred}", level="info")
         return max(0.0, float(pred))
 
     def clear(self):
