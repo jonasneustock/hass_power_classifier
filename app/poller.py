@@ -222,7 +222,7 @@ class PowerPoller:
                             else:
                                 flank = "flat"
                             self._maybe_train_anomaly_model(ts)
-                            is_anomaly = True
+                            is_anomaly = False
                             if self.segment_counter >= 100 and self.anomaly_model is not None:
                                 feat_vec = np.array(
                                     [
@@ -238,12 +238,18 @@ class PowerPoller:
                                 try:
                                     pred = self.anomaly_model.predict(feat_vec)[0]
                                     is_anomaly = pred == -1
-                                    if not is_anomaly:
-                                        log_event("Segment skipped: not anomalous", level="info")
+                                    log_event(
+                                        f"Anomaly prediction for segment: is_anomaly={is_anomaly}",
+                                        level="info",
+                                    )
                                 except Exception as exc:
-                                    log_event(f"Anomaly prediction failed, keeping segment: {exc}", level="warning")
-                                    is_anomaly = True
-                            if not is_anomaly:
+                                    log_event(
+                                        f"Anomaly prediction failed, treating as non-anomalous: {exc}",
+                                        level="warning",
+                                    )
+                                    is_anomaly = False
+                            if is_anomaly:
+                                log_event("Segment skipped: anomalous", level="info")
                                 self.pending_segment = None
                                 continue
                             segment = {
@@ -358,6 +364,7 @@ class PowerPoller:
 
     def _run_batched_inference(self):
         for segment_id, segment, flank in list(self.recent_segments_for_inference):
+            log_event(f"Running prediction for segment #{segment_id}", level="info")
             prediction = self.classifier.predict(segment)
             if prediction:
                 appliance = prediction
@@ -366,6 +373,8 @@ class PowerPoller:
                     f"Prediction for segment #{segment_id}: {appliance}"
                 )
                 self._apply_power_for_segment(segment_id, segment, appliance, flank)
+            else:
+                log_event(f"No prediction available for segment #{segment_id}", level="warning")
         self.recent_segments_for_inference.clear()
 
     def _poll_activity_sensors(self, ts):
