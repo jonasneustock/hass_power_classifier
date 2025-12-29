@@ -8,7 +8,15 @@ from fastapi.staticfiles import StaticFiles
 
 from app import context
 from app.logging_utils import log_event
-from app.routers import api, appliances, dashboard, logs_page, models_page, segments
+from app.routers import (
+    api,
+    appliances,
+    dashboard,
+    logs_page,
+    models_page,
+    segments,
+    training_data,
+)
 from app.utils import build_mqtt_topics
 
 
@@ -124,6 +132,7 @@ def create_app() -> FastAPI:
     app.include_router(segments.router)
     app.include_router(models_page.router)
     app.include_router(logs_page.router)
+    app.include_router(training_data.router)
     app.include_router(api.router)
 
     # Redirect root to dashboard if needed
