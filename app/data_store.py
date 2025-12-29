@@ -620,6 +620,14 @@ class DataStore:
             )
             self.conn.commit()
 
+    def delete_segments_by_label(self, appliance):
+        with self.lock:
+            self.conn.execute(
+                "DELETE FROM segments WHERE label_appliance = ?",
+                (appliance,),
+            )
+            self.conn.commit()
+
     def clear_segment_prediction(self, segment_id):
         with self.lock:
             self.conn.execute(

@@ -29,12 +29,6 @@ class TrainingManager:
         self._stop_scheduler = threading.Event()
         self.last_training_signature = None
 
-    def ensure_base_appliance(self):
-        base = self.store.get_appliance("base")
-        if not base:
-            self.store.add_appliance("base", "", "", "")
-            log_event("Base appliance created for baseline labeling")
-
     def trigger_training(self):
         log_event("Training trigger requested")
         thread = threading.Thread(target=self._run_training, daemon=True)
