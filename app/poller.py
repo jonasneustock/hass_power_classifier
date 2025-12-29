@@ -62,6 +62,11 @@ class PowerPoller:
         ]
         self.anomaly_last_train_ts = 0
         self.anomaly_trained_on = 0
+        self.anomaly_metrics = {
+            "trained_on": 0,
+            "last_trained": None,
+            "mean_score": None,
+        }
 
     def start(self):
         if self.thread and self.thread.is_alive():
@@ -334,7 +339,20 @@ class PowerPoller:
             self.anomaly_model = model
             self.anomaly_trained_on = len(labeled)
             self.anomaly_last_train_ts = ts
-            log_event(f"Anomaly model trained on {len(labeled)} labeled segments")
+            mean_score = None
+            try:
+                scores = model.score_samples(X)
+                mean_score = float(np.mean(scores))
+            except Exception:
+                mean_score = None
+            self.anomaly_metrics = {
+                "trained_on": len(labeled),
+                "last_trained": ts,
+                "mean_score": mean_score,
+            }
+            log_event(
+                f"Anomaly model trained on {len(labeled)} labeled segments (mean score={mean_score})"
+            )
         except Exception as exc:
             log_event(f"Failed to train anomaly model: {exc}", level="warning")
 

@@ -18,6 +18,7 @@ def models_page(request: Request):
         if context.training_manager.metrics_history
         else None
     )
+    anomaly_metrics = getattr(context.poller, "anomaly_metrics", None)
     return context.templates.TemplateResponse(
         "models.html",
         {
@@ -30,6 +31,7 @@ def models_page(request: Request):
             "training_state": context.training_manager.training_state,
             "metrics_history": context.training_manager.metrics_history,
             "current_metrics": current_metrics,
+            "anomaly_metrics": anomaly_metrics,
         },
     )
 

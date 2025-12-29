@@ -60,6 +60,31 @@
         {% endif %}
       </p>
     </div>
+    <div class="rounded-xl bg-slate-50 p-4">
+      <p class="text-slate-500">Anomaly detector</p>
+      <p class="text-lg font-semibold">
+        {% if anomaly_metrics and anomaly_metrics.trained_on %}
+          trained on {{ anomaly_metrics.trained_on }} segs
+        {% else %}
+          not trained
+        {% endif %}
+      </p>
+      <p class="text-xs text-slate-500">
+        Mean score:
+        {% if anomaly_metrics and anomaly_metrics.mean_score is not none %}
+          {{ anomaly_metrics.mean_score | round(4) }}
+        {% else %}
+          n/a
+        {% endif %}
+        <br />
+        Last trained:
+        {% if anomaly_metrics and anomaly_metrics.last_trained %}
+          {{ anomaly_metrics.last_trained | format_ts }}
+        {% else %}
+          n/a
+        {% endif %}
+      </p>
+    </div>
   </div>
   {% else %}
   <p class="mt-3 text-sm text-slate-500">Not trained yet. Add labels then retrain.</p>
