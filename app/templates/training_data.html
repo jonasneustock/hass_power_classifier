@@ -6,9 +6,17 @@
       <h2 class="text-lg font-semibold">Training data</h2>
       <p class="text-sm text-slate-500">Review and fix labels. Clusters are computed from segment features (labels ignored).</p>
     </div>
-    <div class="text-sm text-slate-600">
-      <p>Clusters: {{ cluster_counts|length }} (smaller, DBSCAN-based)</p>
-    </div>
+    <form class="flex items-center gap-2 text-sm text-slate-600" method="get" action="/training-data">
+      <label class="flex items-center gap-1">
+        eps
+        <input class="w-20 rounded border border-slate-300 px-2 py-1 text-sm focus:border-blue-500 focus:ring-blue-500" type="number" step="0.01" min="0.01" name="eps" value="{{ eps }}" />
+      </label>
+      <label class="flex items-center gap-1">
+        min_samples
+        <input class="w-20 rounded border border-slate-300 px-2 py-1 text-sm focus:border-blue-500 focus:ring-blue-500" type="number" min="1" name="min_samples" value="{{ min_samples }}" />
+      </label>
+      <button class="rounded bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800" type="submit">Recluster</button>
+    </form>
   </div>
   {% if segments %}
   <div class="mt-4 flex flex-wrap gap-2 text-xs text-slate-700">

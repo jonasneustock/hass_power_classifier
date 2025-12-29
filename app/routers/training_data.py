@@ -47,10 +47,10 @@ def _cluster_segments(segments, eps=0.2, min_samples=2):
 
 
 @router.get("", response_class=HTMLResponse)
-def training_data_page(request: Request):
+def training_data_page(request: Request, eps: float = 0.2, min_samples: int = 2):
     log_event("Training data page viewed")
     labeled_segments = context.store.get_labeled_segments()
-    clustered = _cluster_segments(labeled_segments)
+    clustered = _cluster_segments(labeled_segments, eps=eps, min_samples=min_samples)
     cluster_counts = {}
     for seg in clustered:
         cluster_counts[seg["cluster"]] = cluster_counts.get(seg["cluster"], 0) + 1
@@ -63,6 +63,8 @@ def training_data_page(request: Request):
             "segments": clustered,
             "cluster_counts": cluster_counts,
             "appliances": appliances,
+            "eps": eps,
+            "min_samples": min_samples,
         },
     )
 
