@@ -30,6 +30,16 @@
       <input class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" type="text" name="learning_sensor_id" placeholder="sensor.toaster_power_input" value="{{ form.learning_sensor_id if form else '' }}" />
       <span class="mt-1 block text-xs text-slate-500">Used to auto-detect start/stop and auto-label segments.</span>
     </label>
+    <div class="grid gap-4 md:grid-cols-2">
+      <label class="text-sm font-medium text-slate-700">
+        User min power (W)
+        <input class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" type="number" step="0.01" name="user_min_power" value="{{ form.user_min_power if form else '' }}" />
+      </label>
+      <label class="text-sm font-medium text-slate-700">
+        User max power (W)
+        <input class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" type="number" step="0.01" name="user_max_power" value="{{ form.user_max_power if form else '' }}" />
+      </label>
+    </div>
     {% if config.mqtt_enabled %}
     <p class="text-sm text-slate-500">When MQTT is enabled, the entity IDs are used as discovery object IDs.</p>
     {% endif %}
@@ -62,6 +72,9 @@
       </p>
       {% endif %}
       <p class="truncate text-sm text-slate-600">Regression min/mean/max (W): {{ appliance.min_power or 0 }} / {{ appliance.mean_power or appliance.running_watts or 0 }} / {{ appliance.max_power or 0 }}</p>
+      {% if appliance.user_min_power or appliance.user_max_power %}
+      <p class="truncate text-xs text-slate-500">User min/max override (W): {{ appliance.user_min_power or '—' }} / {{ appliance.user_max_power or '—' }}</p>
+      {% endif %}
       <p class="truncate text-sm text-slate-600">Current published power: {{ appliance.current_power or 0 }} W</p>
       <p class="text-sm text-slate-600">Last status: {{ appliance.last_status or 'unknown' }}</p>
         </div>
@@ -80,6 +93,14 @@
               Learning sensor
               <input class="mt-1 w-full rounded border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500" type="text" name="learning_sensor_id" value="{{ appliance.learning_sensor_id }}" />
               <input type="hidden" name="learning_appliance" value="{{ appliance.learning_appliance }}" />
+            </label>
+            <label class="block text-xs">
+              User min power (W)
+              <input class="mt-1 w-full rounded border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500" type="number" step="0.01" name="user_min_power" value="{{ appliance.user_min_power }}" />
+            </label>
+            <label class="block text-xs">
+              User max power (W)
+              <input class="mt-1 w-full rounded border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500" type="number" step="0.01" name="user_max_power" value="{{ appliance.user_max_power }}" />
             </label>
             <button class="w-full rounded bg-slate-900 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-800" type="submit">Save</button>
           </form>

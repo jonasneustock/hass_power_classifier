@@ -7,7 +7,7 @@ import random
 import numpy as np
 
 from app.logging_utils import log_event
-from app.utils import samples_to_diffs
+from app.utils import samples_to_diffs, compute_segment_delta
 
 
 class TrainingManager:
@@ -83,6 +83,16 @@ class TrainingManager:
         stats = {}
         for appliance in appliances:
             name = appliance["name"]
+            user_min = appliance.get("user_min_power")
+            user_max = appliance.get("user_max_power")
+            if user_min is not None and user_max is not None:
+                mean_val = (user_min + user_max) / 2.0
+                stats[name] = {
+                    "min_power": float(user_min),
+                    "mean_power": float(mean_val),
+                    "max_power": float(user_max),
+                }
+                continue
             labeled = [
                 seg
                 for seg in labeled_segments
@@ -146,6 +156,23 @@ class TrainingManager:
                 seg for seg in labeled_segments if seg["label_appliance"] in eligible
             ]
             log_event(f"Training: {len(labeled_segments)} labeled segments considered")
+            # apply user min/max filters with tolerance
+            filtered = []
+            for seg in labeled_segments:
+                appliance = seg["label_appliance"]
+                appliance_row = self.store.get_appliance(appliance)
+                delta = compute_segment_delta(self.store, seg)
+                user_min = appliance_row.get("user_min_power")
+                user_max = appliance_row.get("user_max_power")
+                if user_min is not None:
+                    if delta < user_min * 0.9:
+                        continue
+                if user_max is not None:
+                    if delta > user_max * 1.1:
+                        continue
+                filtered.append(seg)
+            labeled_segments = filtered
+            log_event(f"Training: {len(labeled_segments)} segments after user min/max filters")
             if not labeled_segments:
                 log_event("Training skipped: no labeled segments", level="warning")
                 self.training_state["last_finished"] = int(time.time())

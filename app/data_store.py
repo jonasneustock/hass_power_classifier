@@ -2,6 +2,8 @@ import sqlite3
 import threading
 import time
 
+_UNSET = object()
+
 
 class DataStore:
     def __init__(self, db_path):
@@ -65,6 +67,8 @@ class DataStore:
                     learning_sensor_id TEXT DEFAULT '',
                     current_power REAL DEFAULT 0,
                     running_watts REAL DEFAULT 0,
+                    user_min_power REAL,
+                    user_max_power REAL,
                     last_status TEXT,
                     last_status_ts INTEGER,
                     min_power REAL,
@@ -97,6 +101,10 @@ class DataStore:
             to_add.append(("learning_appliance", "INTEGER DEFAULT 0"))
         if "learning_sensor_id" not in columns:
             to_add.append(("learning_sensor_id", "TEXT DEFAULT ''"))
+        if "user_min_power" not in columns:
+            to_add.append(("user_min_power", "REAL"))
+        if "user_max_power" not in columns:
+            to_add.append(("user_max_power", "REAL"))
         added = False
         for col, col_type in to_add:
             try:
@@ -406,6 +414,8 @@ class DataStore:
         activity_sensors="",
         learning_appliance=0,
         learning_sensor_id="",
+        user_min_power=None,
+        user_max_power=None,
     ):
         created_ts = int(time.time())
         with self.lock:
@@ -413,8 +423,8 @@ class DataStore:
                 """
                 INSERT INTO appliances (
                     name, status_entity_id, power_entity_id, activity_sensors,
-                    learning_appliance, learning_sensor_id, created_ts
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    learning_appliance, learning_sensor_id, user_min_power, user_max_power, created_ts
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     name,
@@ -423,6 +433,8 @@ class DataStore:
                     activity_sensors,
                     learning_appliance,
                     learning_sensor_id,
+                    user_min_power,
+                    user_max_power,
                     created_ts,
                 ),
             )
@@ -477,6 +489,8 @@ class DataStore:
         status_entity_id=None,
         learning_appliance=None,
         learning_sensor_id=None,
+        user_min_power=_UNSET,
+        user_max_power=_UNSET,
     ):
         fields = []
         params = []
@@ -495,6 +509,12 @@ class DataStore:
         if learning_sensor_id is not None:
             fields.append("learning_sensor_id = ?")
             params.append(learning_sensor_id)
+        if user_min_power is not _UNSET:
+            fields.append("user_min_power = ?")
+            params.append(user_min_power)
+        if user_max_power is not _UNSET:
+            fields.append("user_max_power = ?")
+            params.append(user_max_power)
         if not fields:
             return
         params.append(name)
