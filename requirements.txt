@@ -5,9 +5,11 @@ requests
 httpx
 python-dotenv
 numpy
+pandas
 scikit-learn
 python-multipart
 paho-mqtt
 pytest
 pytest-cov
 joblib
+pycaret
