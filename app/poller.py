@@ -5,6 +5,9 @@ import time
 from collections import deque
 from statistics import pstdev
 
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
 from app.logging_utils import log_event
 from app.utils import build_mqtt_topics, compute_features, compute_segment_delta, push_power_value
 
@@ -46,6 +49,19 @@ class PowerPoller:
         self.prev_sensor_values = {}
         self.last_inference_ts = 0
         self.recent_segments_for_inference = deque(maxlen=5)
+        self.segment_counter = self.store.count_segments()
+        self.anomaly_model = None
+        self.anomaly_feature_names = [
+            "mean",
+            "std",
+            "max",
+            "min",
+            "duration",
+            "slope",
+            "change_score",
+        ]
+        self.anomaly_last_train_ts = 0
+        self.anomaly_trained_on = 0
 
     def start(self):
         if self.thread and self.thread.is_alive():
@@ -200,6 +216,31 @@ class PowerPoller:
                                 flank = "negative"
                             else:
                                 flank = "flat"
+                            self._maybe_train_anomaly_model(ts)
+                            is_anomaly = True
+                            if self.segment_counter >= 100 and self.anomaly_model is not None:
+                                feat_vec = np.array(
+                                    [
+                                        features["mean"],
+                                        features["std"],
+                                        features["max"],
+                                        features["min"],
+                                        features["duration"],
+                                        features["slope"],
+                                        features["change_score"],
+                                    ]
+                                ).reshape(1, -1)
+                                try:
+                                    pred = self.anomaly_model.predict(feat_vec)[0]
+                                    is_anomaly = pred == -1
+                                    if not is_anomaly:
+                                        log_event("Segment skipped: not anomalous", level="info")
+                                except Exception as exc:
+                                    log_event(f"Anomaly prediction failed, keeping segment: {exc}", level="warning")
+                                    is_anomaly = True
+                            if not is_anomaly:
+                                self.pending_segment = None
+                                continue
                             segment = {
                                 "start_ts": segment_samples[0][0],
                                 "end_ts": segment_samples[-1][0],
@@ -215,6 +256,7 @@ class PowerPoller:
                                 "created_ts": ts,
                             }
                             segment_id = self.store.add_segment(segment)
+                            self.segment_counter += 1
                             log_event(
                                 f"Segment #{segment_id} created change={round(features['change_score']*100,1)}%"
                             )
@@ -258,6 +300,43 @@ class PowerPoller:
             if ts - self.last_inference_ts >= 5 and self.recent_segments_for_inference:
                 self._run_batched_inference()
                 self.last_inference_ts = ts
+
+    def _maybe_train_anomaly_model(self, ts):
+        # Train on labeled segments after enough history; throttle to avoid constant retraining
+        if ts - self.anomaly_last_train_ts < 60:
+            return
+        labeled = self.store.get_labeled_segments()
+        if len(labeled) < 10:
+            return
+        if len(labeled) == self.anomaly_trained_on:
+            return
+        X = []
+        for seg in labeled:
+            X.append(
+                [
+                    seg.get("mean", 0.0),
+                    seg.get("std", 0.0),
+                    seg.get("max", 0.0),
+                    seg.get("min", 0.0),
+                    seg.get("duration", 0.0),
+                    seg.get("slope", 0.0),
+                    seg.get("change_score", 0.0),
+                ]
+            )
+        try:
+            model = IsolationForest(
+                random_state=42,
+                n_estimators=200,
+                contamination="auto",
+                n_jobs=-1,
+            )
+            model.fit(X)
+            self.anomaly_model = model
+            self.anomaly_trained_on = len(labeled)
+            self.anomaly_last_train_ts = ts
+            log_event(f"Anomaly model trained on {len(labeled)} labeled segments")
+        except Exception as exc:
+            log_event(f"Failed to train anomaly model: {exc}", level="warning")
 
     def _run_batched_inference(self):
         for segment_id, segment, flank in list(self.recent_segments_for_inference):
