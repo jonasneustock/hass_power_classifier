@@ -129,7 +129,11 @@ def label_segment(
         )
     log_event(f"Labeled segment #{segment_id} as {appliance}")
     if next_segment:
-        next_seg = context.store.get_latest_unlabeled_segment()
+        next_seg = None
+        if segment:
+            next_seg = context.store.get_next_unlabeled_before(segment["start_ts"])
+        if not next_seg:
+            next_seg = context.store.get_latest_unlabeled_segment()
         if next_seg:
             return RedirectResponse(url=f"/segments/{next_seg['id']}", status_code=303)
     return RedirectResponse(url="/segments", status_code=303)

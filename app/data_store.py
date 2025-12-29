@@ -352,6 +352,21 @@ class DataStore:
             row = cursor.fetchone()
         return dict(row) if row else None
 
+    def get_next_unlabeled_before(self, start_ts):
+        with self.lock:
+            cursor = self.conn.execute(
+                """
+                SELECT * FROM segments
+                WHERE label_appliance IS NULL
+                  AND start_ts < ?
+                ORDER BY start_ts DESC
+                LIMIT 1
+                """,
+                (start_ts,),
+            )
+            row = cursor.fetchone()
+        return dict(row) if row else None
+
     def delete_unlabeled_before(self, cutoff_ts):
         with self.lock:
             cursor = self.conn.execute(
