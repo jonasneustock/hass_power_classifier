@@ -13,7 +13,7 @@ from app.logging_utils import log_event
 router = APIRouter(prefix="/training-data")
 
 
-def _cluster_segments(segments, eps=0.35, min_samples=3):
+def _cluster_segments(segments, eps=0.2, min_samples=2):
     if not segments:
         return []
     feats = []
