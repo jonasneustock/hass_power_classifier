@@ -59,6 +59,7 @@ def training_data_page(request: Request):
         "training_data.html",
         {
             "request": request,
+            "config": context.config,
             "segments": clustered,
             "cluster_counts": cluster_counts,
             "appliances": appliances,
