@@ -51,6 +51,10 @@ def training_data_page(request: Request, eps: float = 0.2, min_samples: int = 2)
     log_event("Training data page viewed")
     labeled_segments = context.store.get_labeled_segments()
     clustered = _cluster_segments(labeled_segments, eps=eps, min_samples=min_samples)
+    # attach sample snippets for sparklines
+    for seg in clustered:
+        samples = context.store.get_samples_between(seg["start_ts"], seg["end_ts"])
+        seg["samples"] = samples
     cluster_counts = {}
     for seg in clustered:
         cluster_counts[seg["cluster"]] = cluster_counts.get(seg["cluster"], 0) + 1

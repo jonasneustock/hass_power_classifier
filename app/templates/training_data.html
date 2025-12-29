@@ -62,6 +62,9 @@
             <form class="mt-2" method="post" action="/training-data/{{ segment.id }}/delete" onsubmit="return confirm('Delete segment #{{ segment.id }}?');">
               <button class="rounded border border-red-300 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50" type="submit">Delete</button>
             </form>
+            {% if segment.samples %}
+            <canvas class="mt-2 h-16 w-48 rounded border border-slate-200 bg-slate-50" width="192" height="64" data-chart='{{ segment.samples | tojson }}'></canvas>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}
