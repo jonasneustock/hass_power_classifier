@@ -13,22 +13,37 @@ from app.logging_utils import log_event
 router = APIRouter(prefix="/training-data")
 
 
-def _cluster_segments(segments, eps=0.2, min_samples=2):
+def _pattern_vector(segment, store, target_len=60):
+    samples = store.get_samples_between(segment["start_ts"], segment["end_ts"])
+    if not samples or len(samples) < 2:
+        return None
+    times = np.array([s["ts"] for s in samples], dtype=float)
+    values = np.array([s["value"] for s in samples], dtype=float)
+    times = times - times[0]
+    duration = times[-1] if times[-1] != 0 else 1.0
+    times_norm = times / duration
+    values_rel = values - values[0]
+    target_x = np.linspace(0, 1, target_len)
+    try:
+        resampled = np.interp(target_x, times_norm, values_rel)
+        # normalize amplitude to reduce scale dominance
+        std = np.std(resampled)
+        if std > 1e-6:
+            resampled = (resampled - np.mean(resampled)) / std
+        return resampled
+    except Exception:
+        return None
+
+
+def _cluster_segments(segments, store, eps=0.2, min_samples=2):
     if not segments:
         return []
     feats = []
     for seg in segments:
-        feats.append(
-            [
-                seg.get("mean", 0.0),
-                seg.get("std", 0.0),
-                seg.get("max", 0.0),
-                seg.get("min", 0.0),
-                seg.get("duration", 0.0),
-                seg.get("slope", 0.0),
-                seg.get("change_score", 0.0),
-            ]
-        )
+        vec = _pattern_vector(seg, store)
+        if vec is None:
+            vec = np.zeros(60)
+        feats.append(vec)
     X = np.array(feats)
     try:
         X_scaled = StandardScaler().fit_transform(X)
@@ -50,7 +65,9 @@ def _cluster_segments(segments, eps=0.2, min_samples=2):
 def training_data_page(request: Request, eps: float = 0.2, min_samples: int = 2):
     log_event("Training data page viewed")
     labeled_segments = context.store.get_labeled_segments()
-    clustered = _cluster_segments(labeled_segments, eps=eps, min_samples=min_samples)
+    clustered = _cluster_segments(
+        labeled_segments, context.store, eps=eps, min_samples=min_samples
+    )
     # attach sample snippets for sparklines
     for seg in clustered:
         samples = context.store.get_samples_between(seg["start_ts"], seg["end_ts"])
