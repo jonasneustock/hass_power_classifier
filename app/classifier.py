@@ -23,9 +23,31 @@ from app.utils import samples_to_diffs
 from app.logging_utils import log_event
 
 
+FEATURE_COLUMNS = [
+    "mean",
+    "std",
+    "max",
+    "min",
+    "duration",
+    "slope",
+    "change_score",
+]
+
+
 def _filtered_kwargs(func, **kwargs):
     params = signature(func).parameters
     return {key: value for key, value in kwargs.items() if key in params}
+
+
+def _feature_values(segment):
+    return [segment[name] for name in FEATURE_COLUMNS]
+
+
+def _feature_input(segment):
+    values = [_feature_values(segment)]
+    if pd is not None:
+        return pd.DataFrame(values, columns=FEATURE_COLUMNS)
+    return np.array(values)
 
 
 class ClassifierService:
@@ -73,15 +95,7 @@ class ClassifierService:
             if eligible_appliances and appliance not in eligible_appliances:
                 continue
             label = appliance
-            features = [
-                segment["mean"],
-                segment["std"],
-                segment["max"],
-                segment["min"],
-                segment["duration"],
-                segment["slope"],
-                segment["change_score"],
-            ]
+            features = _feature_values(segment)
             X.append(features)
             y.append(label)
         if not X:
@@ -113,15 +127,7 @@ class ClassifierService:
 
             df = pd.DataFrame(
                 X,
-                columns=[
-                    "mean",
-                    "std",
-                    "max",
-                    "min",
-                    "duration",
-                    "slope",
-                    "change_score",
-                ],
+                columns=FEATURE_COLUMNS,
             )
             df["label"] = y
             setup_kwargs = _filtered_kwargs(
@@ -221,19 +227,7 @@ class ClassifierService:
         with self.lock:
             if self.model is None:
                 return None
-            features = np.array(
-                [
-                    [
-                        segment["mean"],
-                        segment["std"],
-                        segment["max"],
-                        segment["min"],
-                        segment["duration"],
-                        segment["slope"],
-                        segment["change_score"],
-                    ]
-                ]
-            )
+            features = _feature_input(segment)
             prediction = self.model.predict(features)[0]
             log_event(
                 f"Classifier prediction: {prediction} for segment features mean={segment['mean']}, change={segment['change_score']}",
@@ -245,19 +239,7 @@ class ClassifierService:
         with self.lock:
             if self.model is None or not hasattr(self.model, "predict_proba"):
                 return []
-            features = np.array(
-                [
-                    [
-                        segment["mean"],
-                        segment["std"],
-                        segment["max"],
-                        segment["min"],
-                        segment["duration"],
-                        segment["slope"],
-                        segment["change_score"],
-                    ]
-                ]
-            )
+            features = _feature_input(segment)
             probs = self.model.predict_proba(features)[0]
             classes = self.model.classes_
         scored = []
